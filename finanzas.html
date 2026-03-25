@@ -68,7 +68,7 @@
 <div class="container">
     <div class="botones-header">
             <button class="btn-nav btn-excel" onclick="descargarExcel()">📥 Descargar Excel</button>
-            <a href="index.html" class="btn-nav">← Regresar a Operaciones</a>
+            <a href="dashboard.html" class="btn-nav">← Regresar a Operaciones</a>
             <a href="carga.html" class="btn-nav">Cargar Datos</a>
             <button class="btn-nav" style="background: #e74c3c;" onclick="cerrarSesion()">Salir</button>
         </div>
@@ -141,14 +141,14 @@
     async function verificarAcceso() {
         const { data: { session }, error } = await clienteSupabase.auth.getSession();
         if (!session || error) {
-            window.location.href = "login.html"; // Si no hay sesión, lo patea al login
+            window.location.href = "index.html"; // Si no hay sesión, lo patea al login
         }
     }
     verificarAcceso(); // Ejecutar inmediatamente al abrir la página
 
     async function cerrarSesion() {
         await clienteSupabase.auth.signOut();
-        window.location.href = "login.html";
+        window.location.href = "index.html";
     }
 
     const formatoDinero = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
