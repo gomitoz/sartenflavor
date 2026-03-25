@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carga de Archivos - Dashboard Operativo</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 600px; margin: 50px auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; margin-bottom: 30px; }
+        
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; color: #34495e; }
+        /* Ahora aceptamos xlsx y xls también */
+        select, input[type="file"] { width: 100%; padding: 10px; border: 1px solid #bdc3c7; border-radius: 5px; box-sizing: border-box; font-size: 1em; }
+        
+        .btn-cargar { width: 100%; padding: 15px; background-color: #3498db; color: white; border: none; border-radius: 5px; font-size: 1.1em; font-weight: bold; cursor: pointer; transition: background 0.3s; }
+        .btn-cargar:hover { background-color: #2980b9; }
+        .btn-cargar:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        
+        #statusBox { margin-top: 20px; padding: 15px; border-radius: 5px; text-align: center; font-weight: bold; display: none; }
+        .status-info { background-color: #e3f2fd; color: #0d47a1; border: 1px solid #bbdefb; }
+        .status-success { background-color: #e8f5e9; color: #1b5e20; border: 1px solid #c8e6c9; }
+        .status-error { background-color: #ffebee; color: #b71c1c; border: 1px solid #ffcdd2; }
+        
+        .nav-links { text-align: center; margin-top: 20px; }
+        .nav-links a { color: #3498db; text-decoration: none; font-weight: bold; margin: 0 10px; }
+        .nav-links a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Subir Reporte de Paquetería</h1>
+    
+    <div class="form-group">
+        <label for="paqueteria">1. Selecciona la Paquetería:</label>
+        <select id="paqueteria">
+            <option value="FedEx">FedEx</option>
+            <option value="Afimex">Afimex</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="excelFile">2. Selecciona el archivo (.xlsx o .csv):</label>
+        <input type="file" id="excelFile" accept=".xlsx, .xls, .csv">
+    </div>
+
+    <button id="btnSubir" class="btn-cargar" onclick="procesarArchivo()">Procesar y Subir Datos</button>
+
+    <div id="statusBox"></div>
+
+    <div class="nav-links">
+        <a href="index.html">Ver Dashboard Operativo</a>
+        <a href="finanzas.html">Ver Finanzas</a>
+        <a href="#" onclick="cerrarSesion()" style="color: #e74c3c;">Cerrar Sesión</a>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // CONFIGURACIÓN SUPABASE
+    // ==========================================
+    const SUPABASE_URL = 'https://vtjosswxbkuklwfygvcn.supabase.co'; 
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0am9zc3d4Ymt1a2x3ZnlndmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODI4MTgsImV4cCI6MjA4OTg1ODgxOH0.K0gzcDf7figLjgQ3bWO2hgGS9K8yrb1_qxquGypUzOU';
+    const clienteSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function verificarAcceso() {
+        const { data: { session }, error } = await clienteSupabase.auth.getSession();
+        if (!session || error) window.location.href = "login.html";
+    }
+    verificarAcceso();
+
+    async function cerrarSesion() {
+        await clienteSupabase.auth.signOut();
+        window.location.href = "login.html";
+    }
+
+    function mostrarMensaje(texto, tipo) {
+        const box = document.getElementById('statusBox');
+        box.innerText = texto;
+        box.className = 'status-' + tipo;
+        box.style.display = 'block';
+    }
+
+    // ==========================================
+    // HERRAMIENTAS DE LIMPIEZA
+    // ==========================================
+    const diccionarioEstados = {
+        "AG": "Aguascalientes", "BC": "Baja California", "BS": "Baja California Sur",
+        "CA": "Campeche", "CS": "Chiapas", "CH": "Chihuahua", "CM": "Ciudad de México", 
+        "CX": "Ciudad de México", "DF": "Ciudad de México", "CO": "Coahuila", "CL": "Colima", 
+        "DG": "Durango", "EM": "Estado de México", "ME": "Estado de México", "GT": "Guanajuato", 
+        "GR": "Guerrero", "HG": "Hidalgo", "JA": "Jalisco", "MI": "Michoacán", "MO": "Morelos", 
+        "NA": "Nayarit", "NL": "Nuevo León", "OA": "Oaxaca", "PU": "Puebla", "QT": "Querétaro", 
+        "QR": "Quintana Roo", "SL": "San Luis Potosí", "SI": "Sinaloa", "SO": "Sonora", 
+        "TB": "Tabasco", "TM": "Tamaulipas", "TL": "Tlaxcala", "VE": "Veracruz", 
+        "YU": "Yucatán", "ZA": "Zacatecas"
+    };
+
+    // Excel exporta fechas como números a veces, SheetJS nos ayuda pero aseguramos la limpieza
+    function limpiarExcel(texto) {
+        if (texto === undefined || texto === null) return '';
+        return String(texto).replace(/[="]/g, '').trim();
+    }
+
+    // Lector de fechas híbrido (entiende el Excel numérico y el texto normal)
+    function formatoFechaDB(fechaTexto) {
+        if (!fechaTexto || String(fechaTexto).trim() === '') return null;
+        
+        let texto = String(fechaTexto).trim();
+        if (texto.toUpperCase().includes('SIN INFO') || texto.toUpperCase().includes('NAN')) return null;
+
+        // Si SheetJS nos regresa la fecha ya en formato Excel numérico (ej: 45000)
+        if (!isNaN(texto) && Number(texto) > 10000) {
+            const date = new Date((Number(texto) - (25567 + 2)) * 86400 * 1000);
+            return date.toISOString().split('.')[0]; 
+        }
+
+        texto = texto.replace('T', ' ');
+        if (texto.match(/^\d{4}-\d{2}-\d{2}/)) return texto; 
+        
+        const partes = texto.split(/[\s/:-]+/); 
+        if (partes.length >= 3) {
+            let dia = partes[0], mes = partes[1], anio = partes[2];
+            if (anio.length !== 4 && dia.length === 4) { anio = partes[0]; dia = partes[2]; }
+            if (isNaN(dia) || isNaN(mes) || isNaN(anio)) return null;
+
+            let hora = partes[3] || '00', minuto = partes[4] || '00', segundo = partes[5] || '00';
+            return `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}T${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}:${String(segundo).padStart(2, '0')}`;
+        }
+        return null;
+    }
+
+    // ==========================================
+    // PROCESAMIENTO CON LECTOR DE EXCEL
+    // ==========================================
+    async function procesarArchivo() {
+        const fileInput = document.getElementById('excelFile');
+        const paqueteriaSeleccionada = document.getElementById('paqueteria').value;
+        const btn = document.getElementById('btnSubir');
+
+        if (!fileInput.files.length) {
+            mostrarMensaje("Por favor, selecciona un archivo primero.", "error");
+            return;
+        }
+
+        const seguro = confirm(`¿Estás seguro que deseas cargar la información de ${paqueteriaSeleccionada}?`);
+        if (!seguro) return; 
+
+        btn.disabled = true;
+        mostrarMensaje("Leyendo archivo de Excel...", "info");
+
+        const reader = new FileReader();
+        
+        reader.onload = async function(e) {
+            try {
+                // 1. Leemos el archivo binario
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+                
+                // 2. Tomamos la primera pestaña del Excel
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                // 3. Lo convertimos a una tabla (Arreglo de Arreglos)
+                const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+                
+                if (rawData.length < 2) throw new Error("El archivo parece estar vacío.");
+
+                // 4. Lógica para esquivar la primera línea de Afimex
+                let startIndex = 0;
+                if (paqueteriaSeleccionada === 'Afimex' && String(rawData[0][0]).toUpperCase().includes('INVENTARIO DE GUÍAS')) {
+                    startIndex = 1; 
+                }
+
+                // 5. Extraemos encabezados y las filas reales
+                const headers = rawData[startIndex];
+                const rows = rawData.slice(startIndex + 1);
+
+                // 6. Convertimos a Arreglo de Objetos (lo que usábamos antes)
+                const filasBrutas = rows.map(rowArray => {
+                    let obj = {};
+                    headers.forEach((header, index) => {
+                        obj[header] = rowArray[index];
+                    });
+                    return obj;
+                });
+
+                // ==========================================
+                // FILTRO ANTI-FANTASMAS
+                // ==========================================
+                const filas = filasBrutas.filter(fila => {
+                    let guia = paqueteriaSeleccionada === 'Afimex' ? fila['GUÍA'] : fila.tracking_number;
+                    return guia && String(guia).trim() !== '';
+                });
+
+                if (filas.length === 0) throw new Error("No se encontraron guías válidas en este archivo.");
+
+                // ==========================================
+                // MAPEADO Y TRADUCTOR
+                // ==========================================
+                const datosLimpios = filas.map(fila => {
+                    let dataMapeada = {
+                        paqueteria: paqueteriaSeleccionada,
+                        detalles_extra: fila 
+                    };
+
+                    // ---- FEDEX ----
+                    if (paqueteriaSeleccionada === 'FedEx') {
+                        dataMapeada.tracking_number = fila.tracking_number ? limpiarExcel(fila.tracking_number) : 'Sin Tracking';
+                        dataMapeada.fecha_envio = formatoFechaDB(fila.created_at);
+                        dataMapeada.fecha_entrega = formatoFechaDB(fila.delivered_at);
+                        dataMapeada.destinatario = limpiarExcel(fila.consignee_name);
+                        dataMapeada.ciudad = limpiarExcel(fila.consignee_city);
+                        let estadoAbrev = limpiarExcel(fila.consignee_state).toUpperCase();
+                        dataMapeada.estado_destino = diccionarioEstados[estadoAbrev] || estadoAbrev; 
+                        dataMapeada.estatus_entrega = limpiarExcel(fila.status);
+                        dataMapeada.monto_cobrado = Number(limpiarExcel(fila.cash_on_delivery_amount)) || 0;
+                        dataMapeada.producto = limpiarExcel(fila.consignee_company_name) || 'No especificado';
+                    }
+
+                    // ---- AFIMEX ----
+                    else if (paqueteriaSeleccionada === 'Afimex') {
+                        dataMapeada.tracking_number = fila['GUÍA'] ? limpiarExcel(fila['GUÍA']) : 'Sin Tracking';
+                        
+                        dataMapeada.fecha_envio = formatoFechaDB(fila['FECHA DE DOCUMENTACIÓN']);
+                        dataMapeada.fecha_entrega = formatoFechaDB(fila['FECHA DE ENTREGA']);
+                        
+                        let destRaw = limpiarExcel(fila['DESTINATARIO']);
+                        let partes = destRaw.split('/');
+                        
+                        if (partes.length >= 3) {
+                            dataMapeada.destinatario = partes[0].trim();
+                            let codNumerico = partes[1].replace(/[^0-9.]/g, '');
+                            dataMapeada.monto_cobrado = Number(codNumerico) || 0;
+                            dataMapeada.producto = partes.slice(2).join('/').trim();
+                        } else {
+                            dataMapeada.destinatario = 'DEVOLUCIÓN';
+                            dataMapeada.monto_cobrado = 0;
+                            dataMapeada.producto = destRaw.trim() || 'No especificado';
+                        }
+
+                        dataMapeada.ciudad = limpiarExcel(fila['DESTINO']);
+                        dataMapeada.estado_destino = limpiarExcel(fila['DESTINO']);
+                        dataMapeada.estatus_entrega = limpiarExcel(fila['ESTADO DE LA GUÍA']);
+                    }
+
+                    return dataMapeada;
+                });
+
+                // ==========================================
+                // SUBIDA A SUPABASE (UPSERT)
+                // ==========================================
+                const tamañoLote = 500; 
+                let errores = 0;
+
+                mostrarMensaje(`Subiendo ${datosLimpios.length} registros válidos a la nube...`, "info");
+
+                for (let i = 0; i < datosLimpios.length; i += tamañoLote) {
+                    const lote = datosLimpios.slice(i, i + tamañoLote);
+                    const { error } = await clienteSupabase
+                        .from('paquetes_enviados')
+                        .upsert(lote, { onConflict: 'tracking_number' });
+
+                    if (error) { console.error("Error lote", i, error); errores++; }
+                }
+
+                if (errores > 0) {
+                    mostrarMensaje(`Proceso terminado con ${errores} error(es). Revisa la consola.`, "error");
+                } else {
+                    mostrarMensaje(`¡Éxito total! Se procesaron ${filas.length} guías de ${paqueteriaSeleccionada}.`, "success");
+                    document.getElementById('excelFile').value = ""; 
+                }
+                btn.disabled = false;
+
+            } catch (err) {
+                mostrarMensaje("Error en el archivo: " + err.message, "error");
+                btn.disabled = false;
+            }
+        };
+
+        // Arrancamos la lectura del archivo binario
+        reader.readAsArrayBuffer(fileInput.files[0]);
+    }
+</script>
+
+</body>
+</html>

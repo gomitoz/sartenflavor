@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Directivo: Logística y Ventas</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        /* Cabecera */
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+        h1 { color: #2c3e50; margin: 0; }
+        .botones-header { display: flex; gap: 10px; }
+        .btn-nav { padding: 8px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 0.9em; border: none; cursor: pointer; }
+        .btn-nav:hover { background: #2980b9; }
+        .btn-salir { background: #e74c3c; } .btn-salir:hover { background: #c0392b; }
+        .btn-finanzas { background: #27ae60; } .btn-finanzas:hover { background: #1e8449; }
+
+        /* Filtro Global Maestro */
+        .filtro-global { background: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 15px; border-left: 5px solid #f39c12; }
+        .filtro-global select { padding: 8px 15px; border-radius: 5px; border: 1px solid #bdc3c7; font-weight: bold; font-size: 1.05em; color: #2c3e50; cursor: pointer; outline: none; }
+        
+        /* Tarjetas de Sección */
+        .seccion-card { background: white; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); padding: 25px; margin-bottom: 35px; border-top: 4px solid #2c3e50; }
+        .seccion-titulo { font-size: 1.4em; font-weight: bold; color: #2c3e50; margin-top: 0; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* Layouts y Flexbox */
+        .flex-row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .w-60 { flex: 6; min-width: 400px; }
+        .w-50 { flex: 5; min-width: 400px; }
+        .w-40 { flex: 4; min-width: 300px; }
+        .chart-container { position: relative; height: 350px; width: 100%; }
+        
+        /* Filtros Internos */
+        .filtro-bar { background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 15px; display: flex; gap: 15px; align-items: center; font-size: 0.9em; }
+        .filtro-bar input { padding: 6px; border-radius: 4px; border: 1px solid #ccc; }
+        .btn-aplicar { background: #2c3e50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-aplicar:hover { background: #1a252f; }
+
+        /* KPIs Sección 1 */
+        .kpi-container { display: flex; gap: 15px; margin-bottom: 20px; }
+        .kpi-box { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; flex: 1; border: 1px solid #e9ecef; }
+        .kpi-val { font-size: 1.8em; font-weight: bold; color: #3498db; }
+        .kpi-val.green { color: #27ae60; }
+        
+        /* Tablas */
+        .table-container { max-height: 350px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        th, td { padding: 10px; text-align: center; border-bottom: 1px solid #ddd; }
+        th { background-color: #2c3e50; color: white; position: sticky; top: 0; z-index: 1; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        
+        #pantallaCarga { text-align: center; padding: 40px; font-size: 1.5em; font-weight: bold; color: #3498db; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-top">
+        <h1>Centro de Mando Operativo</h1>
+        <div class="botones-header">
+            <a href="finanzas.html" class="btn-nav btn-finanzas">Ir a Finanzas</a>
+            <a href="carga.html" class="btn-nav">Cargar Datos</a>
+            <button class="btn-nav btn-salir" onclick="cerrarSesion()">Salir</button>
+        </div>
+    </div>
+
+    <div id="pantallaCarga">Conectando a Supabase y descargando historial... ⏳</div>
+
+    <div id="dashboardContent" style="display:none;">
+        
+        <div class="filtro-global">
+            <strong style="color: #2c3e50; font-size: 1.1em;">Vista de Datos:</strong>
+            <select id="filtroPaqueteriaGlobal" onchange="aplicarFiltroGlobal()">
+                <option value="Todas">📦 Todas las Paqueterías (Consolidado)</option>
+                <option value="FedEx">🟣 Solo FedEx</option>
+                <option value="Afimex">🔴 Solo Afimex</option>
+            </select>
+        </div>
+
+        <div class="seccion-card">
+            <div class="seccion-titulo">
+                Sección 1: Eficiencia de Envíos
+                <div class="filtro-bar" style="margin: 0; padding: 5px;">
+                    Desde: <input type="month" id="s1Inicio"> 
+                    Hasta: <input type="month" id="s1Fin">
+                    <button class="btn-aplicar" onclick="renderSeccion1()">Filtrar</button>
+                    <button class="btn-aplicar" style="background:#95a5a6;" onclick="limpiarS1()">Ver Todo</button>
+                </div>
+            </div>
+            
+            <div class="kpi-container">
+                <div class="kpi-box"><div class="kpi-val" id="s1TotEnv">0</div><div class="kpi-label">Total Enviados</div></div>
+                <div class="kpi-box"><div class="kpi-val green" id="s1TotEnt">0</div><div class="kpi-label">Total Entregados</div></div>
+                <div class="kpi-box"><div class="kpi-val" id="s1Efic">0%</div><div class="kpi-label">Efectividad</div></div>
+            </div>
+
+            <div class="flex-row">
+                <div class="w-60"><div class="chart-container"><canvas id="chartS1"></canvas></div></div>
+                <div class="w-40">
+                    <div class="table-container">
+                        <table>
+                            <thead><tr><th>Periodo</th><th>Enviados</th><th>Entregados</th><th>Efectividad</th></tr></thead>
+                            <tbody id="tablaS1"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="seccion-card">
+            <div class="seccion-titulo">Sección 2: Detalle Pedidos por Mes</div>
+            <div class="filtro-bar">
+                Mes específico: <input type="month" id="s2Mes">
+                <button class="btn-aplicar" onclick="renderSeccion2()">Consultar Mes</button>
+            </div>
+            <div class="flex-row">
+                <div class="w-40">
+                    <div class="table-container">
+                        <table>
+                            <thead><tr><th>Mes</th><th>Pedidos Generados</th></tr></thead>
+                            <tbody id="tablaS2"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="w-60"><div class="chart-container"><canvas id="chartS2"></canvas></div></div>
+            </div>
+        </div>
+
+        <div class="seccion-card">
+            <div class="seccion-titulo">Sección 3: Detalle Pedidos por Día</div>
+            <div class="filtro-bar">
+                Rango de Días -> Desde: <input type="date" id="s3Inicio"> Hasta: <input type="date" id="s3Fin">
+                <button class="btn-aplicar" onclick="renderSeccion3()">Consultar Días</button>
+            </div>
+            <div class="flex-row">
+                <div class="w-40">
+                    <div class="table-container">
+                        <table>
+                            <thead><tr><th>Día</th><th>Pedidos Generados</th></tr></thead>
+                            <tbody id="tablaS3"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="w-60"><div class="chart-container"><canvas id="chartS3"></canvas></div></div>
+            </div>
+        </div>
+
+        <div class="seccion-card">
+            <div class="seccion-titulo">Sección 4: Top Productos y Distribución Nacional</div>
+            <div class="flex-row">
+                
+                <div class="w-50">
+                    <h3 style="margin-top:0; color:#34495e;">Top 10 Productos Históricos</h3>
+                    <div class="table-container" style="max-height: 400px;">
+                        <table>
+                            <thead><tr><th>#</th><th>Producto</th><th>Cantidad Pedida</th></tr></thead>
+                            <tbody id="tablaS4Izq"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="w-50">
+                    <h3 style="margin-top:0; color:#34495e;">Productos Pedidos por Estado</h3>
+                    <div class="filtro-bar" style="padding:8px;">
+                        Mes: <input type="month" id="s4Mes">
+                        <button class="btn-aplicar" onclick="renderSeccion4Der()">Filtrar</button>
+                    </div>
+                    <div class="table-container" style="max-height: 335px;">
+                        <table>
+                            <thead><tr><th>Estado</th><th>Producto</th><th>Cantidad</th></tr></thead>
+                            <tbody id="tablaS4Der"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // CONFIGURACIÓN SUPABASE Y VARIABLES GLOBALES
+    // ==========================================
+    const SUPABASE_URL = 'https://vtjosswxbkuklwfygvcn.supabase.co'; 
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0am9zc3d4Ymt1a2x3ZnlndmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODI4MTgsImV4cCI6MjA4OTg1ODgxOH0.K0gzcDf7figLjgQ3bWO2hgGS9K8yrb1_qxquGypUzOU'; 
+    const clienteSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let paquetesGlobales = []; 
+    let paquetesFiltrados = []; 
+    let graficas = { s1: null, s2: null, s3: null };
+
+    // ==========================================
+    // INICIO Y DESCARGA MASIVA
+    // ==========================================
+    async function iniciarSistema() {
+        const { data: { session }, error } = await clienteSupabase.auth.getSession();
+        if (!session || error) { window.location.href = "login.html"; return; }
+        
+        descargarTodoSupabase();
+    }
+
+    async function cerrarSesion() {
+        await clienteSupabase.auth.signOut(); window.location.href = "login.html";
+    }
+
+    async function descargarTodoSupabase() {
+        try {
+            let rangoInicio = 0;
+            const tamañoPagina = 1000;
+            let buscando = true;
+
+            while (buscando) {
+                // ¡IMPORTANTE! Agregamos destinatario para poder detectar las devoluciones
+                const { data, error } = await clienteSupabase
+                    .from('paquetes_enviados')
+                    .select('fecha_envio, estatus_entrega, producto, estado_destino, paqueteria, destinatario') 
+                    .range(rangoInicio, rangoInicio + tamañoPagina - 1);
+
+                if (error) throw error;
+                paquetesGlobales.push(...data);
+
+                if (data.length < tamañoPagina) buscando = false;
+                else rangoInicio += tamañoPagina;
+            }
+
+            document.getElementById('pantallaCarga').style.display = 'none';
+            document.getElementById('dashboardContent').style.display = 'block';
+            
+            aplicarFiltroGlobal();
+
+        } catch (error) {
+            document.getElementById('pantallaCarga').innerHTML = `<span style="color:red;">Error: ${error.message}</span>`;
+        }
+    }
+
+    // ==========================================
+    // LÓGICA DEL FILTRO GLOBAL (PAQUETERÍA + PURIFICADOR DE DEVOLUCIONES)
+    // ==========================================
+    function aplicarFiltroGlobal() {
+        const paqSeleccionada = document.getElementById('filtroPaqueteriaGlobal').value;
+        
+        // 1. Filtrar por paquetería si es necesario
+        let temporal = paquetesGlobales;
+        if (paqSeleccionada !== 'Todas') {
+            temporal = paquetesGlobales.filter(p => p.paqueteria === paqSeleccionada);
+        }
+
+        // 2. ELIMINAR DEVOLUCIONES (Aplica para todas las secciones)
+        paquetesFiltrados = temporal.filter(p => {
+            // Si en la carga se marcó el destinatario como DEVOLUCIÓN, lo ignoramos
+            if (p.destinatario === 'DEVOLUCIÓN') return false;
+            
+            // Si el producto dice exactamente "SARTEN FLAVOR" (por si acaso), lo ignoramos
+            if (p.producto && p.producto.toUpperCase().trim() === 'SARTEN FLAVOR') return false;
+            
+            return true;
+        });
+
+        // Redibujamos todo con la data ya purificada
+        renderSeccion1();
+        renderSeccion2();
+        renderSeccion3();
+        renderSeccion4Izq(); 
+        renderSeccion4Der(); 
+    }
+
+    // ==========================================
+    // SECCIÓN 1: EFICIENCIA 
+    // ==========================================
+    function limpiarS1() {
+        document.getElementById('s1Inicio').value = ''; document.getElementById('s1Fin').value = '';
+        renderSeccion1();
+    }
+
+    function renderSeccion1() {
+        const mIni = document.getElementById('s1Inicio').value;
+        const mFin = document.getElementById('s1Fin').value;
+        const agrupado = {};
+
+        if (mIni && mFin) {
+            let [aAct, mAct] = mIni.split('-').map(Number);
+            let [aLim, mLim] = mFin.split('-').map(Number);
+            while (aAct < aLim || (aAct === aLim && mAct <= mLim)) {
+                let p = `${aAct}-${String(mAct).padStart(2, '0')}`;
+                agrupado[p] = { Periodo: p, Enviados: 0, Entregados: 0 };
+                mAct++; if (mAct > 12) { mAct = 1; aAct++; }
+            }
+        }
+
+        paquetesFiltrados.forEach(p => {
+            if (!p.fecha_envio) return;
+            const periodo = p.fecha_envio.substring(0, 7); 
+            
+            if (mIni && periodo < mIni) return;
+            if (mFin && periodo > mFin) return;
+
+            if (!agrupado[periodo]) agrupado[periodo] = { Periodo: periodo, Enviados: 0, Entregados: 0 };
+            agrupado[periodo].Enviados++;
+            
+            const estatus = (p.estatus_entrega || '').toLowerCase();
+            // ¡NUEVO!: Añadimos "entregada" para reconocer el estatus de Afimex
+            if (estatus.includes('delivered') || estatus.includes('entregado') || estatus.includes('entregada') || estatus.includes('success')) {
+                agrupado[periodo].Entregados++;
+            }
+        });
+
+        const dataFinal = Object.values(agrupado).sort((a, b) => a.Periodo.localeCompare(b.Periodo));
+        
+        let tEnv = 0, tEnt = 0;
+        const tbody = document.getElementById('tablaS1'); tbody.innerHTML = '';
+        const labels = [], dEnv = [], dEnt = [];
+
+        dataFinal.forEach(r => {
+            tEnv += r.Enviados; tEnt += r.Entregados;
+            labels.push(r.Periodo); dEnv.push(r.Enviados); dEnt.push(r.Entregados);
+            const pct = r.Enviados > 0 ? ((r.Entregados/r.Enviados)*100).toFixed(1)+'%' : '0%';
+            tbody.innerHTML += `<tr><td>${r.Periodo}</td><td>${r.Enviados}</td><td>${r.Entregados}</td><td><strong>${pct}</strong></td></tr>`;
+        });
+
+        document.getElementById('s1TotEnv').innerText = tEnv.toLocaleString();
+        document.getElementById('s1TotEnt').innerText = tEnt.toLocaleString();
+        document.getElementById('s1Efic').innerText = tEnv > 0 ? ((tEnt/tEnv)*100).toFixed(1)+'%' : '0%';
+
+        if (graficas.s1) graficas.s1.destroy();
+        graficas.s1 = new Chart(document.getElementById('chartS1'), {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ label: 'Enviados', data: dEnv, backgroundColor: '#3498db' }, { label: 'Entregados', data: dEnt, backgroundColor: '#2ecc71' }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    // ==========================================
+    // SECCIÓN 2: PEDIDOS POR MES 
+    // ==========================================
+    function renderSeccion2() {
+        const mesFiltro = document.getElementById('s2Mes').value;
+        const agrupado = {};
+
+        paquetesFiltrados.forEach(p => {
+            if (!p.fecha_envio) return;
+            const periodo = p.fecha_envio.substring(0, 7); 
+            if (mesFiltro && periodo !== mesFiltro) return; 
+
+            agrupado[periodo] = (agrupado[periodo] || 0) + 1;
+        });
+
+        const dataFinal = Object.keys(agrupado).sort().map(k => ({ mes: k, cant: agrupado[k] }));
+        
+        const tbody = document.getElementById('tablaS2'); tbody.innerHTML = '';
+        const labels = [], dataArr = [];
+
+        if (dataFinal.length === 0) tbody.innerHTML = '<tr><td colspan="2">No hay datos</td></tr>';
+
+        dataFinal.forEach(r => {
+            labels.push(r.mes); dataArr.push(r.cant);
+            tbody.innerHTML += `<tr><td>${r.mes}</td><td>${r.cant}</td></tr>`;
+        });
+
+        if (graficas.s2) graficas.s2.destroy();
+        graficas.s2 = new Chart(document.getElementById('chartS2'), {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ label: 'Pedidos Generados', data: dataArr, backgroundColor: '#9b59b6' }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    // ==========================================
+    // SECCIÓN 3: PEDIDOS POR DÍA 
+    // ==========================================
+    function renderSeccion3() {
+        const dIni = document.getElementById('s3Inicio').value;
+        const dFin = document.getElementById('s3Fin').value;
+        const agrupado = {};
+
+        paquetesFiltrados.forEach(p => {
+            if (!p.fecha_envio) return;
+            const diaStr = p.fecha_envio.substring(0, 10); 
+            
+            if (dIni && diaStr < dIni) return;
+            if (dFin && diaStr > dFin) return;
+
+            agrupado[diaStr] = (agrupado[diaStr] || 0) + 1;
+        });
+
+        const dataFinal = Object.keys(agrupado).sort().map(k => ({ dia: k, cant: agrupado[k] }));
+        
+        const tbody = document.getElementById('tablaS3'); tbody.innerHTML = '';
+        const labels = [], dataArr = [];
+
+        if (dataFinal.length === 0) tbody.innerHTML = '<tr><td colspan="2">Selecciona un rango válido</td></tr>';
+
+        dataFinal.forEach(r => {
+            labels.push(r.dia); dataArr.push(r.cant);
+            tbody.innerHTML += `<tr><td>${r.dia}</td><td>${r.cant}</td></tr>`;
+        });
+
+        if (graficas.s3) graficas.s3.destroy();
+        graficas.s3 = new Chart(document.getElementById('chartS3'), {
+            type: 'line', 
+            data: { labels: labels, datasets: [{ label: 'Pedidos por Día', data: dataArr, borderColor: '#e67e22', backgroundColor: 'rgba(230, 126, 34, 0.2)', fill: true, tension: 0.3 }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    // ==========================================
+    // SECCIÓN 4: TOP PRODUCTOS Y ESTADOS
+    // ==========================================
+    function renderSeccion4Izq() {
+        const agrupado = {};
+        paquetesFiltrados.forEach(p => {
+            let prod = p.producto && p.producto !== 'No especificado' ? p.producto : 'Otro / Sin Nombre';
+            agrupado[prod] = (agrupado[prod] || 0) + 1;
+        });
+
+        const top10 = Object.keys(agrupado)
+            .map(k => ({ prod: k, cant: agrupado[k] }))
+            .sort((a, b) => b.cant - a.cant)
+            .slice(0, 10);
+
+        const tbody = document.getElementById('tablaS4Izq'); tbody.innerHTML = '';
+        top10.forEach((r, i) => {
+            tbody.innerHTML += `<tr><td><b>${i+1}</b></td><td>${r.prod}</td><td>${r.cant}</td></tr>`;
+        });
+    }
+
+    function renderSeccion4Der() {
+        const mesFiltro = document.getElementById('s4Mes').value;
+        const agrupado = {};
+
+        paquetesFiltrados.forEach(p => {
+            if (!p.fecha_envio) return;
+            const periodo = p.fecha_envio.substring(0, 7); 
+            if (mesFiltro && periodo !== mesFiltro) return; 
+
+            let prod = p.producto && p.producto !== 'No especificado' ? p.producto : 'Otro / Sin Nombre';
+            const estado = p.estado_destino || 'Desconocido';
+            const llave = `${estado}|${prod}`; 
+
+            agrupado[llave] = (agrupado[llave] || 0) + 1;
+        });
+
+        const lista = Object.keys(agrupado)
+            .map(k => {
+                const [es, pr] = k.split('|');
+                return { estado: es, prod: pr, cant: agrupado[k] };
+            })
+            .sort((a, b) => b.cant - a.cant); 
+
+        const tbody = document.getElementById('tablaS4Der'); tbody.innerHTML = '';
+        if (lista.length === 0) tbody.innerHTML = '<tr><td colspan="3">Sin datos para este periodo</td></tr>';
+        
+        lista.forEach(r => {
+            tbody.innerHTML += `<tr><td>${r.estado}</td><td>${r.prod}</td><td><b>${r.cant}</b></td></tr>`;
+        });
+    }
+
+    // Iniciar
+    iniciarSistema();
+</script>
+
+</body>
+</html>

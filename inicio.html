@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>¿Cómo va tu día?</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        /* Cabecera */
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+        h1 { color: #2c3e50; margin: 0; font-size: 2em; }
+        .botones-header { display: flex; gap: 10px; }
+        .btn-nav { padding: 8px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 0.9em; border: none; cursor: pointer; }
+        .btn-nav:hover { background: #2980b9; }
+        .btn-excel { background: #207144; } .btn-excel:hover { background: #185c37; }
+        .btn-salir { background: #e74c3c; } .btn-salir:hover { background: #c0392b; }
+
+        /* Tarjetas de Sección */
+        .seccion-card { background: white; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); padding: 25px; margin-bottom: 30px; border-top: 4px solid #f39c12; }
+        .seccion-titulo { font-size: 1.4em; font-weight: bold; color: #2c3e50; margin-top: 0; margin-bottom: 20px; }
+        
+        /* Layouts */
+        .flex-row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .w-50 { flex: 1; min-width: 400px; }
+
+        /* KPIs Sección 1 */
+        .kpi-box { background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .kpi-fedex { border-bottom: 4px solid #4b1494; }
+        .kpi-afimex { border-bottom: 4px solid #c0392b; }
+        .kpi-val { font-size: 2.5em; font-weight: bold; color: #2c3e50; margin: 10px 0; }
+        .kpi-label { font-size: 1.1em; color: #7f8c8d; font-weight: bold; }
+
+        /* Tablas */
+        .table-container { max-height: 400px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        th, td { padding: 12px 10px; text-align: center; border-bottom: 1px solid #ddd; }
+        th { color: white; position: sticky; top: 0; z-index: 1; font-weight: bold; }
+        .th-fedex { background-color: #4b1494; }
+        .th-afimex { background-color: #c0392b; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        
+        /* Alertas visuales para Días en Tránsito */
+        .alerta-roja { color: #c0392b; font-weight: bold; }
+        .alerta-amarilla { color: #d35400; font-weight: bold; }
+
+        #pantallaCarga { text-align: center; padding: 40px; font-size: 1.5em; font-weight: bold; color: #3498db; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-top">
+        <h1>¿Cómo va tu día? ☀️</h1>
+        <div class="botones-header">
+            <button class="btn-nav btn-excel" onclick="descargarExcel()">📥 Descargar Pendientes</button>
+            <a href="index.html" class="btn-nav">Mando Operativo</a>
+            <a href="finanzas.html" class="btn-nav" style="background:#27ae60;">Finanzas</a>
+            <a href="carga.html" class="btn-nav" style="background:#8e44ad;">Carga</a>
+            <button class="btn-nav btn-salir" onclick="cerrarSesion()">Salir</button>
+        </div>
+    </div>
+
+    <div id="pantallaCarga">Revisando estatus de paquetes... ⏳</div>
+
+    <div id="dashboardContent" style="display:none;">
+        
+        <div class="seccion-card">
+            <div class="seccion-titulo">Sección 1: Pendientes por Enviar (Documentadas)</div>
+            <div class="flex-row">
+                <div class="w-50 kpi-box kpi-fedex">
+                    <div class="kpi-label">Guías Pendientes FedEx</div>
+                    <div class="kpi-val" id="kpiFedexEnviadas">0</div>
+                    <div style="color:#7f8c8d; font-size:0.85em;">(Estatus: Created)</div>
+                </div>
+                <div class="w-50 kpi-box kpi-afimex">
+                    <div class="kpi-label">Guías Pendientes Afimex</div>
+                    <div class="kpi-val" id="kpiAfimexEnviadas">0</div>
+                    <div style="color:#7f8c8d; font-size:0.85em;">(Estatus: Pre-Documentada)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="seccion-card" style="border-top: 4px solid #3498db;">
+            <div class="seccion-titulo">Sección 2: Guías Pendientes de Entrega (En Tránsito / Alerta)</div>
+            <div class="flex-row">
+                
+                <div class="w-50">
+                    <h3 style="margin-top:0; color:#4b1494;">Pendientes de Entrega FedEx</h3>
+                    <div class="table-container">
+                        <table id="tablaFedex">
+                            <thead>
+                                <tr>
+                                    <th class="th-fedex">Guía</th>
+                                    <th class="th-fedex">Estatus Actual</th>
+                                    <th class="th-fedex">Días en Tránsito</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bodyFedex"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="w-50">
+                    <h3 style="margin-top:0; color:#c0392b;">Pendientes de Entrega Afimex</h3>
+                    <div class="table-container">
+                        <table id="tablaAfimex">
+                            <thead>
+                                <tr>
+                                    <th class="th-afimex">Guía</th>
+                                    <th class="th-afimex">Estatus Actual</th>
+                                    <th class="th-afimex">Días en Tránsito</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bodyAfimex"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // CONFIGURACIÓN SUPABASE
+    // ==========================================
+    const SUPABASE_URL = 'https://vtjosswxbkuklwfygvcn.supabase.co'; 
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0am9zc3d4Ymt1a2x3ZnlndmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODI4MTgsImV4cCI6MjA4OTg1ODgxOH0.K0gzcDf7figLjgQ3bWO2hgGS9K8yrb1_qxquGypUzOU';   
+    const clienteSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let paquetesGlobales = []; 
+
+    // Estatus que califican como "Pendiente de Entrega" (Todo en minúsculas para comparar fácil)
+    const estatusPendientesFedex = [
+        'created', 'shipped', 'delayed', 'delivery attempt', 
+        'address error', 'out for delivery', 'rejected', 'information', 
+         'lost'
+    ];
+    
+    const estatusPendientesAfimex = [
+        'pre-documentada - aún no recibida en afimex', 'embarcada', 
+        'en ruta', 'listo para entregar', 'transbordada', 
+        'excepcion', 'en almacen'
+    ];
+
+    // ==========================================
+    // INICIO
+    // ==========================================
+    async function iniciarSistema() {
+        const { data: { session }, error } = await clienteSupabase.auth.getSession();
+        if (!session || error) { window.location.href = "login.html"; return; }
+        descargarTodoSupabase();
+    }
+
+    async function cerrarSesion() {
+        await clienteSupabase.auth.signOut(); window.location.href = "login.html";
+    }
+
+    // ==========================================
+    // CÁLCULO DE FECHAS (DÍAS EN TRÁNSITO)
+    // ==========================================
+    function calcularDiasTransito(fechaEnvio) {
+        if (!fechaEnvio) return 'N/A';
+        const fechaInicio = new Date(fechaEnvio);
+        const fechaHoy = new Date();
+        
+        // Calculamos la diferencia en milisegundos y lo convertimos a días
+        const diferenciaMs = fechaHoy - fechaInicio;
+        const dias = Math.floor(diferenciaMs / (1000 * 60 * 60 * 24));
+        
+        return dias >= 0 ? dias : 0; // Evitar días negativos por si hay diferencias de zona horaria
+    }
+
+    // ==========================================
+    // DESCARGA Y PROCESAMIENTO
+    // ==========================================
+    async function descargarTodoSupabase() {
+        try {
+            let rangoInicio = 0;
+            const tamañoPagina = 1000;
+            let buscando = true;
+
+            while (buscando) {
+                const { data, error } = await clienteSupabase
+                    .from('paquetes_enviados')
+                    .select('tracking_number, estatus_entrega, paqueteria, fecha_envio') 
+                    .range(rangoInicio, rangoInicio + tamañoPagina - 1);
+
+                if (error) throw error;
+                paquetesGlobales.push(...data);
+
+                if (data.length < tamañoPagina) buscando = false;
+                else rangoInicio += tamañoPagina;
+            }
+
+            document.getElementById('pantallaCarga').style.display = 'none';
+            document.getElementById('dashboardContent').style.display = 'block';
+            
+            procesarTableros();
+
+        } catch (error) {
+            document.getElementById('pantallaCarga').innerHTML = `<span style="color:red;">Error: ${error.message}</span>`;
+        }
+    }
+
+    function procesarTableros() {
+        let countFedexCreated = 0;
+        let countAfimexPreDoc = 0;
+        
+        let listaFedex = [];
+        let listaAfimex = [];
+
+        paquetesGlobales.forEach(p => {
+            const paq = p.paqueteria || '';
+            const estatus = (p.estatus_entrega || '').toLowerCase().trim();
+            const diasTransito = calcularDiasTransito(p.fecha_envio);
+
+            // 1. SECCIÓN 1: PENDIENTES POR ENVIAR
+            if (paq === 'FedEx' && estatus === 'created') {
+                countFedexCreated++;
+            } else if (paq === 'Afimex' && estatus === 'pre-documentada - aún no recibida en afimex') {
+                countAfimexPreDoc++;
+            }
+
+            // 2. SECCIÓN 2: PENDIENTES DE ENTREGA
+            if (paq === 'FedEx' && estatusPendientesFedex.includes(estatus)) {
+                listaFedex.push({ guia: p.tracking_number, estatus: p.estatus_entrega, dias: diasTransito });
+            } else if (paq === 'Afimex' && estatusPendientesAfimex.includes(estatus)) {
+                listaAfimex.push({ guia: p.tracking_number, estatus: p.estatus_entrega, dias: diasTransito });
+            }
+        });
+
+        // Actualizar KPIs (Sección 1)
+        document.getElementById('kpiFedexEnviadas').innerText = countFedexCreated.toLocaleString();
+        document.getElementById('kpiAfimexEnviadas').innerText = countAfimexPreDoc.toLocaleString();
+
+        // Ordenar listas de mayor a menor tiempo en tránsito
+        listaFedex.sort((a, b) => (b.dias === 'N/A' ? 0 : b.dias) - (a.dias === 'N/A' ? 0 : a.dias));
+        listaAfimex.sort((a, b) => (b.dias === 'N/A' ? 0 : b.dias) - (a.dias === 'N/A' ? 0 : a.dias));
+
+        // Dibujar Tablas (Sección 2)
+        dibujarTabla('bodyFedex', listaFedex);
+        dibujarTabla('bodyAfimex', listaAfimex);
+    }
+
+    function dibujarTabla(idBody, lista) {
+        const tbody = document.getElementById(idBody);
+        
+        if (lista.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3">Todo al día. No hay pendientes.</td></tr>';
+            return;
+        }
+
+        // ¡EL TRUCO DE RENDIMIENTO!: Creamos una variable de texto vacía
+        let htmlContent = ''; 
+
+        lista.forEach(r => {
+            let claseDias = '';
+            if (r.dias !== 'N/A') {
+                if (r.dias >= 10) claseDias = 'alerta-roja';
+                else if (r.dias >= 5) claseDias = 'alerta-amarilla';
+            }
+
+            // Vamos sumando el texto en la memoria (esto toma 0.001 segundos)
+            htmlContent += `
+                <tr>
+                    <td><strong>${r.guia}</strong></td>
+                    <td style="font-size: 0.9em;">${r.estatus}</td>
+                    <td class="${claseDias}">${r.dias}</td>
+                </tr>
+            `;
+        });
+
+        // Pegamos todos los miles de renglones de un solo golpe en la pantalla
+        tbody.innerHTML = htmlContent;
+    }
+
+    // ==========================================
+    // EXPORTAR A EXCEL
+    // ==========================================
+    function descargarExcel() {
+        const wb = XLSX.utils.book_new();
+
+        // Creamos una hoja rápida para el resumen de la Sección 1
+        const datosResumen = [
+            ["Paquetería", "Guías Pendientes de Envío", "Estatus Medido"],
+            ["FedEx", document.getElementById('kpiFedexEnviadas').innerText, "Created"],
+            ["Afimex", document.getElementById('kpiAfimexEnviadas').innerText, "Pre-Documentada"]
+        ];
+        const wsResumen = XLSX.utils.aoa_to_sheet(datosResumen);
+        XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen Envios");
+
+        // Exportamos las Tablas de la Sección 2
+        const wsFedex = XLSX.utils.table_to_sheet(document.getElementById('tablaFedex'));
+        XLSX.utils.book_append_sheet(wb, wsFedex, "Pendientes FedEx");
+
+        const wsAfimex = XLSX.utils.table_to_sheet(document.getElementById('tablaAfimex'));
+        XLSX.utils.book_append_sheet(wb, wsAfimex, "Pendientes Afimex");
+
+        XLSX.writeFile(wb, "Reporte_Diario_Pendientes.xlsx");
+    }
+
+    // Iniciar
+    iniciarSistema();
+</script>
+
+</body>
+</html>
