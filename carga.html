@@ -55,7 +55,7 @@
     <div id="statusBox"></div>
 
     <div class="nav-links">
-        <a href="index.html">Ver Dashboard Operativo</a>
+        <a href="dashboard.html">Ver Dashboard Operativo</a>
         <a href="finanzas.html">Ver Finanzas</a>
         <a href="#" onclick="cerrarSesion()" style="color: #e74c3c;">Cerrar Sesión</a>
     </div>
@@ -71,13 +71,13 @@
 
     async function verificarAcceso() {
         const { data: { session }, error } = await clienteSupabase.auth.getSession();
-        if (!session || error) window.location.href = "login.html";
+        if (!session || error) window.location.href = "index.html";
     }
     verificarAcceso();
 
     async function cerrarSesion() {
         await clienteSupabase.auth.signOut();
-        window.location.href = "login.html";
+        window.location.href = "index.html";
     }
 
     function mostrarMensaje(texto, tipo) {
