@@ -156,12 +156,12 @@
     // ==========================================
     async function iniciarSistema() {
         const { data: { session }, error } = await clienteSupabase.auth.getSession();
-        if (!session || error) { window.location.href = "login.html"; return; }
+        if (!session || error) { window.location.href = "index.html"; return; }
         descargarTodoSupabase();
     }
 
     async function cerrarSesion() {
-        await clienteSupabase.auth.signOut(); window.location.href = "login.html";
+        await clienteSupabase.auth.signOut(); window.location.href = "index.html";
     }
 
     // ==========================================
