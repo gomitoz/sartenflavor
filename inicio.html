@@ -91,7 +91,7 @@
             <div class="flex-row">
                 
                 <div class="w-50">
-                    <h3 style="margin-top:0; color:#4b1494;">Pendientes de Entrega FedEx</h3>
+                    <h3 style="margin-top:0; color:#4b1494;" id="tituloFedexPendientes">Pendientes de Entrega FedEx (0)</h3>
                     <div class="table-container">
                         <table id="tablaFedex">
                             <thead>
@@ -107,7 +107,7 @@
                 </div>
 
                 <div class="w-50">
-                    <h3 style="margin-top:0; color:#c0392b;">Pendientes de Entrega Afimex</h3>
+                    <h3 style="margin-top:0; color:#c0392b;" id="tituloAfimexPendientes">Pendientes de Entrega Afimex (0)</h3>
                     <div class="table-container">
                         <table id="tablaAfimex">
                             <thead>
@@ -125,6 +125,45 @@
             </div>
         </div>
 
+        <div class="seccion-card" style="border-top: 4px solid #e74c3c;">
+            <div class="seccion-titulo">Sección 3: Monitoreo de Devoluciones</div>
+            <div class="flex-row">
+                
+                <div class="w-50">
+                    <h3 style="margin-top:0; color:#4b1494;" id="tituloFedexDevoluciones">Pedidos en Proceso de Devolución FedEx (0)</h3>
+                    <div class="table-container">
+                        <table id="tablaFedexDev">
+                            <thead>
+                                <tr>
+                                    <th class="th-fedex">Guía</th>
+                                    <th class="th-fedex">Estatus Actual</th>
+                                    <th class="th-fedex">Días en Tránsito</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bodyFedexDev"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="w-50">
+                    <h3 style="margin-top:0; color:#c0392b;" id="tituloAfimexDevoluciones">Pedidos en Proceso de Devolución Afimex (0)</h3>
+                    <div class="table-container">
+                        <table id="tablaAfimexDev">
+                            <thead>
+                                <tr>
+                                    <th class="th-afimex">Guía</th>
+                                    <th class="th-afimex">Estatus Actual</th>
+                                    <th class="th-afimex">Días en Tránsito</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bodyAfimexDev"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -133,12 +172,12 @@
     // CONFIGURACIÓN SUPABASE
     // ==========================================
     const SUPABASE_URL = 'https://vtjosswxbkuklwfygvcn.supabase.co'; 
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0am9zc3d4Ymt1a2x3ZnlndmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODI4MTgsImV4cCI6MjA4OTg1ODgxOH0.K0gzcDf7figLjgQ3bWO2hgGS9K8yrb1_qxquGypUzOU';   
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0am9zc3d4Ymt1a2x3ZnlndmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODI4MTgsImV4cCI6MjA4OTg1ODgxOH0.K0gzcDf7figLjgQ3bWO2hgGS9K8yrb1_qxquGypUzOU';      
     const clienteSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let paquetesGlobales = []; 
 
-    // Estatus que califican como "Pendiente de Entrega" (Todo en minúsculas para comparar fácil)
+    // Estatus Sección 2
     const estatusPendientesFedex = [
         'created', 'shipped', 'delayed', 'delivery attempt', 
         'address error', 'out for delivery', 'rejected', 'information', 
@@ -156,32 +195,23 @@
     // ==========================================
     async function iniciarSistema() {
         const { data: { session }, error } = await clienteSupabase.auth.getSession();
-        if (!session || error) { window.location.href = "index.html"; return; }
+        if (!session || error) { window.location.href = "login.html"; return; }
         descargarTodoSupabase();
     }
 
     async function cerrarSesion() {
-        await clienteSupabase.auth.signOut(); window.location.href = "index.html";
+        await clienteSupabase.auth.signOut(); window.location.href = "login.html";
     }
 
-    // ==========================================
-    // CÁLCULO DE FECHAS (DÍAS EN TRÁNSITO)
-    // ==========================================
     function calcularDiasTransito(fechaEnvio) {
         if (!fechaEnvio) return 'N/A';
         const fechaInicio = new Date(fechaEnvio);
         const fechaHoy = new Date();
-        
-        // Calculamos la diferencia en milisegundos y lo convertimos a días
         const diferenciaMs = fechaHoy - fechaInicio;
         const dias = Math.floor(diferenciaMs / (1000 * 60 * 60 * 24));
-        
-        return dias >= 0 ? dias : 0; // Evitar días negativos por si hay diferencias de zona horaria
+        return dias >= 0 ? dias : 0; 
     }
 
-    // ==========================================
-    // DESCARGA Y PROCESAMIENTO
-    // ==========================================
     async function descargarTodoSupabase() {
         try {
             let rangoInicio = 0;
@@ -189,9 +219,10 @@
             let buscando = true;
 
             while (buscando) {
+                // ¡IMPORTANTE! Se agregó 'destinatario' a la consulta para la lógica de Afimex
                 const { data, error } = await clienteSupabase
                     .from('paquetes_enviados')
-                    .select('tracking_number, estatus_entrega, paqueteria, fecha_envio') 
+                    .select('tracking_number, estatus_entrega, paqueteria, fecha_envio, destinatario') 
                     .range(rangoInicio, rangoInicio + tamañoPagina - 1);
 
                 if (error) throw error;
@@ -217,59 +248,76 @@
         
         let listaFedex = [];
         let listaAfimex = [];
+        let listaFedexDev = [];
+        let listaAfimexDev = [];
 
         paquetesGlobales.forEach(p => {
             const paq = p.paqueteria || '';
             const estatus = (p.estatus_entrega || '').toLowerCase().trim();
             const diasTransito = calcularDiasTransito(p.fecha_envio);
+            const destinatario = (p.destinatario || '').toUpperCase().trim();
 
-            // 1. SECCIÓN 1: PENDIENTES POR ENVIAR
-            if (paq === 'FedEx' && estatus === 'created') {
-                countFedexCreated++;
-            } else if (paq === 'Afimex' && estatus === 'pre-documentada - aún no recibida en afimex') {
-                countAfimexPreDoc++;
-            }
+            // 1. SECCIÓN 1
+            if (paq === 'FedEx' && estatus === 'created') countFedexCreated++;
+            else if (paq === 'Afimex' && estatus === 'pre-documentada - aún no recibida en afimex') countAfimexPreDoc++;
 
-            // 2. SECCIÓN 2: PENDIENTES DE ENTREGA
+            // 2. SECCIÓN 2
             if (paq === 'FedEx' && estatusPendientesFedex.includes(estatus)) {
                 listaFedex.push({ guia: p.tracking_number, estatus: p.estatus_entrega, dias: diasTransito });
             } else if (paq === 'Afimex' && estatusPendientesAfimex.includes(estatus)) {
                 listaAfimex.push({ guia: p.tracking_number, estatus: p.estatus_entrega, dias: diasTransito });
             }
+
+            // 3. SECCIÓN 3: DEVOLUCIONES
+            // Lógica FedEx: Estatus = returned
+            if (paq === 'FedEx' && estatus === 'returned') {
+                listaFedexDev.push({ guia: p.tracking_number, estatus: p.estatus_entrega, dias: diasTransito });
+            }
+            // Lógica Afimex: Destinatario = SARTEN FLAVOR y Estatus Diferente a Entregada
+            const esEntregadoAfimex = estatus.includes('delivered') || estatus.includes('entregado') || estatus.includes('entregada') || estatus.includes('success');
+            if (paq === 'Afimex' && destinatario === 'SARTEN FLAVOR' && !esEntregadoAfimex) {
+                listaAfimexDev.push({ guia: p.tracking_number, estatus: p.estatus_entrega, dias: diasTransito });
+            }
         });
 
-        // Actualizar KPIs (Sección 1)
+        // Actualizar KPIs Sección 1
         document.getElementById('kpiFedexEnviadas').innerText = countFedexCreated.toLocaleString();
         document.getElementById('kpiAfimexEnviadas').innerText = countAfimexPreDoc.toLocaleString();
 
-        // Ordenar listas de mayor a menor tiempo en tránsito
+        // Actualizar Títulos Dinámicos Sección 2 y 3
+        document.getElementById('tituloFedexPendientes').innerText = `Pendientes de Entrega FedEx (${listaFedex.length})`;
+        document.getElementById('tituloAfimexPendientes').innerText = `Pendientes de Entrega Afimex (${listaAfimex.length})`;
+        
+        document.getElementById('tituloFedexDevoluciones').innerText = `Pedidos en Proceso de Devolución FedEx (${listaFedexDev.length})`;
+        document.getElementById('tituloAfimexDevoluciones').innerText = `Pedidos en Proceso de Devolución Afimex (${listaAfimexDev.length})`;
+
+        // Ordenar listas de mayor a menor tiempo
         listaFedex.sort((a, b) => (b.dias === 'N/A' ? 0 : b.dias) - (a.dias === 'N/A' ? 0 : a.dias));
         listaAfimex.sort((a, b) => (b.dias === 'N/A' ? 0 : b.dias) - (a.dias === 'N/A' ? 0 : a.dias));
+        listaFedexDev.sort((a, b) => (b.dias === 'N/A' ? 0 : b.dias) - (a.dias === 'N/A' ? 0 : a.dias));
+        listaAfimexDev.sort((a, b) => (b.dias === 'N/A' ? 0 : b.dias) - (a.dias === 'N/A' ? 0 : a.dias));
 
-        // Dibujar Tablas (Sección 2)
+        // Dibujar Tablas
         dibujarTabla('bodyFedex', listaFedex);
         dibujarTabla('bodyAfimex', listaAfimex);
+        dibujarTabla('bodyFedexDev', listaFedexDev);
+        dibujarTabla('bodyAfimexDev', listaAfimexDev);
     }
 
     function dibujarTabla(idBody, lista) {
         const tbody = document.getElementById(idBody);
-        
         if (lista.length === 0) {
             tbody.innerHTML = '<tr><td colspan="3">Todo al día. No hay pendientes.</td></tr>';
             return;
         }
 
-        // ¡EL TRUCO DE RENDIMIENTO!: Creamos una variable de texto vacía
         let htmlContent = ''; 
-
         lista.forEach(r => {
             let claseDias = '';
             if (r.dias !== 'N/A') {
                 if (r.dias >= 10) claseDias = 'alerta-roja';
                 else if (r.dias >= 5) claseDias = 'alerta-amarilla';
             }
-
-            // Vamos sumando el texto en la memoria (esto toma 0.001 segundos)
             htmlContent += `
                 <tr>
                     <td><strong>${r.guia}</strong></td>
@@ -278,8 +326,6 @@
                 </tr>
             `;
         });
-
-        // Pegamos todos los miles de renglones de un solo golpe en la pantalla
         tbody.innerHTML = htmlContent;
     }
 
@@ -289,7 +335,7 @@
     function descargarExcel() {
         const wb = XLSX.utils.book_new();
 
-        // Creamos una hoja rápida para el resumen de la Sección 1
+        // Resumen
         const datosResumen = [
             ["Paquetería", "Guías Pendientes de Envío", "Estatus Medido"],
             ["FedEx", document.getElementById('kpiFedexEnviadas').innerText, "Created"],
@@ -298,17 +344,21 @@
         const wsResumen = XLSX.utils.aoa_to_sheet(datosResumen);
         XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen Envios");
 
-        // Exportamos las Tablas de la Sección 2
+        // Pendientes (Sección 2)
         const wsFedex = XLSX.utils.table_to_sheet(document.getElementById('tablaFedex'));
         XLSX.utils.book_append_sheet(wb, wsFedex, "Pendientes FedEx");
-
         const wsAfimex = XLSX.utils.table_to_sheet(document.getElementById('tablaAfimex'));
         XLSX.utils.book_append_sheet(wb, wsAfimex, "Pendientes Afimex");
 
-        XLSX.writeFile(wb, "Reporte_Diario_Pendientes.xlsx");
+        // Devoluciones (Sección 3)
+        const wsFedexDev = XLSX.utils.table_to_sheet(document.getElementById('tablaFedexDev'));
+        XLSX.utils.book_append_sheet(wb, wsFedexDev, "Devoluciones FedEx");
+        const wsAfimexDev = XLSX.utils.table_to_sheet(document.getElementById('tablaAfimexDev'));
+        XLSX.utils.book_append_sheet(wb, wsAfimexDev, "Devoluciones Afimex");
+
+        XLSX.writeFile(wb, "Reporte_Diario_Monitor.xlsx");
     }
 
-    // Iniciar
     iniciarSistema();
 </script>
 
