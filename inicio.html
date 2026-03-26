@@ -222,7 +222,7 @@
                 // ¡MODIFICACIÓN CLAVE! Agregamos 'last_event_description' a la consulta
                 const { data, error } = await clienteSupabase
                     .from('paquetes_enviados')
-                    .select('tracking_number, estatus_entrega, paqueteria, fecha_envio, destinatario, last_event_description') 
+                    .select('tracking_number, estatus_entrega, paqueteria, fecha_envio, destinatario, last_event_description, producto') 
                     .range(rangoInicio, rangoInicio + tamañoPagina - 1);
 
                 if (error) throw error;
@@ -257,6 +257,7 @@
             const diasTransito = calcularDiasTransito(p.fecha_envio);
             const destinatario = (p.destinatario || '').toUpperCase().trim();
             const subEstatus = (p.last_event_description || '').trim();
+			const producto = (p.producto || '').toUpperCase().trim();
 
             // 1. SECCIÓN 1
             if (paq === 'FedEx' && estatus === 'created') countFedexCreated++;
@@ -275,9 +276,11 @@
                 listaFedexDev.push({ guia: p.tracking_number, estatus: p.estatus_entrega, dias: diasTransito });
             }
             
-            // Lógica Afimex: Destinatario = SARTEN FLAVOR y Estatus Diferente a Entregada
+            // Lógica Afimex corregida: Buscamos SARTEN FLAVOR en el producto (o verificamos si el destinatario es DEVOLUCIÓN)
             const esEntregadoAfimex = estatus.includes('delivered') || estatus.includes('entregado') || estatus.includes('entregada') || estatus.includes('success');
-            if (paq === 'Afimex' && destinatario === 'SARTEN FLAVOR' && !esEntregadoAfimex) {
+            
+            // 2. Cambiamos destinatario por producto.includes('SARTEN FLAVOR')
+            if (paq === 'Afimex' && producto.includes('SARTEN FLAVOR') && !esEntregadoAfimex) {
                 listaAfimexDev.push({ guia: p.tracking_number, estatus: p.estatus_entrega, dias: diasTransito });
             }
         });
