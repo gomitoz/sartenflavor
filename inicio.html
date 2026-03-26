@@ -172,8 +172,8 @@
     // CONFIGURACIÓN SUPABASE
     // ==========================================
     const SUPABASE_URL = 'https://vtjosswxbkuklwfygvcn.supabase.co'; 
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0am9zc3d4Ymt1a2x3ZnlndmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODI4MTgsImV4cCI6MjA4OTg1ODgxOH0.K0gzcDf7figLjgQ3bWO2hgGS9K8yrb1_qxquGypUzOU';      
-    const clienteSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0am9zc3d4Ymt1a2x3ZnlndmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODI4MTgsImV4cCI6MjA4OTg1ODgxOH0.K0gzcDf7figLjgQ3bWO2hgGS9K8yrb1_qxquGypUzOU';
+	const clienteSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let paquetesGlobales = []; 
 
@@ -219,10 +219,10 @@
             let buscando = true;
 
             while (buscando) {
-                // ¡IMPORTANTE! Se agregó 'destinatario' a la consulta para la lógica de Afimex
+                // ¡MODIFICACIÓN CLAVE! Agregamos 'last_event_description' a la consulta
                 const { data, error } = await clienteSupabase
                     .from('paquetes_enviados')
-                    .select('tracking_number, estatus_entrega, paqueteria, fecha_envio, destinatario') 
+                    .select('tracking_number, estatus_entrega, paqueteria, fecha_envio, destinatario, last_event_description') 
                     .range(rangoInicio, rangoInicio + tamañoPagina - 1);
 
                 if (error) throw error;
@@ -256,6 +256,7 @@
             const estatus = (p.estatus_entrega || '').toLowerCase().trim();
             const diasTransito = calcularDiasTransito(p.fecha_envio);
             const destinatario = (p.destinatario || '').toUpperCase().trim();
+            const subEstatus = (p.last_event_description || '').trim();
 
             // 1. SECCIÓN 1
             if (paq === 'FedEx' && estatus === 'created') countFedexCreated++;
@@ -269,10 +270,11 @@
             }
 
             // 3. SECCIÓN 3: DEVOLUCIONES
-            // Lógica FedEx: Estatus = returned
-            if (paq === 'FedEx' && estatus === 'returned') {
+            // Lógica FedEx: Estatus = returned Y Sub-estatus diferente a "Returning package to shipper"
+            if (paq === 'FedEx' && estatus === 'returned' && subEstatus !== 'Returning package to shipper') {
                 listaFedexDev.push({ guia: p.tracking_number, estatus: p.estatus_entrega, dias: diasTransito });
             }
+            
             // Lógica Afimex: Destinatario = SARTEN FLAVOR y Estatus Diferente a Entregada
             const esEntregadoAfimex = estatus.includes('delivered') || estatus.includes('entregado') || estatus.includes('entregada') || estatus.includes('success');
             if (paq === 'Afimex' && destinatario === 'SARTEN FLAVOR' && !esEntregadoAfimex) {
