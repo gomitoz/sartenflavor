@@ -16,14 +16,15 @@
         .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
         h1 { color: #2c3e50; margin: 0; font-size: 2em; }
         .botones-header { display: flex; gap: 10px; }
-        .btn-nav { padding: 8px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 0.9em; border: none; cursor: pointer; }
+        .btn-nav { padding: 8px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 0.9em; border: none; cursor: pointer; transition: 0.3s; }
         .btn-nav:hover { background: #2980b9; }
         .btn-excel { background: #207144; } .btn-excel:hover { background: #185c37; }
         .btn-salir { background: #e74c3c; } .btn-salir:hover { background: #c0392b; }
+        .btn-copiar { background: #34495e; } .btn-copiar:hover { background: #2c3e50; }
 
         /* Tarjetas de Sección */
         .seccion-card { background: white; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); padding: 25px; margin-bottom: 30px; border-top: 4px solid #f39c12; }
-        .seccion-titulo { font-size: 1.4em; font-weight: bold; color: #2c3e50; margin-top: 0; margin-bottom: 20px; }
+        .seccion-titulo { font-size: 1.4em; font-weight: bold; color: #2c3e50; margin-top: 0; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
         
         /* Layouts */
         .flex-row { display: flex; gap: 20px; flex-wrap: wrap; }
@@ -44,6 +45,7 @@
         .th-fedex { background-color: #4b1494; }
         .th-afimex { background-color: #c0392b; }
         tr:nth-child(even) { background-color: #f9f9f9; }
+        tfoot td { background-color: #ecf0f1; font-size: 1.1em; border-top: 2px solid #bdc3c7; }
         
         /* Alertas visuales para Días en Tránsito */
         .alerta-roja { color: #c0392b; font-weight: bold; }
@@ -89,7 +91,6 @@
         <div class="seccion-card" style="border-top: 4px solid #3498db;">
             <div class="seccion-titulo">Sección 2: Guías Pendientes de Entrega (En Tránsito / Alerta)</div>
             <div class="flex-row">
-                
                 <div class="w-50">
                     <h3 style="margin-top:0; color:#4b1494;" id="tituloFedexPendientes">Pendientes de Entrega FedEx (0)</h3>
                     <div class="table-container">
@@ -121,14 +122,12 @@
                         </table>
                     </div>
                 </div>
-
             </div>
         </div>
 
         <div class="seccion-card" style="border-top: 4px solid #e74c3c;">
             <div class="seccion-titulo">Sección 3: Monitoreo de Devoluciones</div>
             <div class="flex-row">
-                
                 <div class="w-50">
                     <h3 style="margin-top:0; color:#4b1494;" id="tituloFedexDevoluciones">Pedidos en Proceso de Devolución FedEx (0)</h3>
                     <div class="table-container">
@@ -160,7 +159,46 @@
                         </table>
                     </div>
                 </div>
+            </div>
+        </div>
 
+        <div class="seccion-card" style="border-top: 4px solid #27ae60;">
+            <div class="seccion-titulo">
+                <span>Sección 4: Mis Paquetes de Hoy</span>
+                <button id="btnCopiarHoy" class="btn-nav btn-copiar" onclick="copiarPaquetesHoy()">📋 Copiar Resumen a WhatsApp</button>
+            </div>
+            <div class="flex-row">
+                <div class="w-50">
+                    <h3 style="margin-top:0; color:#4b1494;" id="tituloFedexHoy">FedEx Hoy (0)</h3>
+                    <div class="table-container" style="max-height: 300px;">
+                        <table id="tablaFedexHoy">
+                            <thead>
+                                <tr>
+                                    <th class="th-fedex">Cantidad</th>
+                                    <th class="th-fedex" style="text-align: left;">Producto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bodyFedexHoy"></tbody>
+                            <tfoot id="footFedexHoy"></tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="w-50">
+                    <h3 style="margin-top:0; color:#c0392b;" id="tituloAfimexHoy">Afimex Hoy (0)</h3>
+                    <div class="table-container" style="max-height: 300px;">
+                        <table id="tablaAfimexHoy">
+                            <thead>
+                                <tr>
+                                    <th class="th-afimex">Cantidad</th>
+                                    <th class="th-afimex" style="text-align: left;">Producto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bodyAfimexHoy"></tbody>
+                            <tfoot id="footAfimexHoy"></tfoot>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -171,8 +209,8 @@
     // ==========================================
     // CONFIGURACIÓN SUPABASE
     // ==========================================
-    const SUPABASE_URL = 'https://vtjosswxbkuklwfygvcn.supabase.co'; 
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0am9zc3d4Ymt1a2x3ZnlndmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODI4MTgsImV4cCI6MjA4OTg1ODgxOH0.K0gzcDf7figLjgQ3bWO2hgGS9K8yrb1_qxquGypUzOU';
+    const SUPABASE_URL = 'https://vtjosswxbkuklwfygvcn.supabase.co'; // Cambia esto por tu URL real
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0am9zc3d4Ymt1a2x3ZnlndmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODI4MTgsImV4cCI6MjA4OTg1ODgxOH0.K0gzcDf7figLjgQ3bWO2hgGS9K8yrb1_qxquGypUzOU'; // Cambia esto por tu KEY real
 	const clienteSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let paquetesGlobales = []; 
@@ -195,12 +233,12 @@
     // ==========================================
     async function iniciarSistema() {
         const { data: { session }, error } = await clienteSupabase.auth.getSession();
-        if (!session || error) { window.location.href = "login.html"; return; }
+        if (!session || error) { window.location.href = "index.html"; return; } // Ajustado a tu flujo de login
         descargarTodoSupabase();
     }
 
     async function cerrarSesion() {
-        await clienteSupabase.auth.signOut(); window.location.href = "login.html";
+        await clienteSupabase.auth.signOut(); window.location.href = "index.html";
     }
 
     function calcularDiasTransito(fechaEnvio) {
@@ -219,7 +257,6 @@
             let buscando = true;
 
             while (buscando) {
-                // ¡MODIFICACIÓN CLAVE! Agregamos 'last_event_description' a la consulta
                 const { data, error } = await clienteSupabase
                     .from('paquetes_enviados')
                     .select('tracking_number, estatus_entrega, paqueteria, fecha_envio, destinatario, last_event_description, producto') 
@@ -250,6 +287,12 @@
         let listaAfimex = [];
         let listaFedexDev = [];
         let listaAfimexDev = [];
+        
+        // Variables para Sección 4 (Hoy)
+        const fechaMexico = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Monterrey" }));
+        const hoyStr = fechaMexico.toISOString().split('T')[0];
+        const conteoFedexHoy = {};
+        const conteoAfimexHoy = {};
 
         paquetesGlobales.forEach(p => {
             const paq = p.paqueteria || '';
@@ -258,6 +301,7 @@
             const destinatario = (p.destinatario || '').toUpperCase().trim();
             const subEstatus = (p.last_event_description || '').trim();
 			const producto = (p.producto || '').toUpperCase().trim();
+            const fechaEnvioCortada = (p.fecha_envio || '').substring(0, 10);
 
             // 1. SECCIÓN 1
             if (paq === 'FedEx' && estatus === 'created') countFedexCreated++;
@@ -271,17 +315,30 @@
             }
 
             // 3. SECCIÓN 3: DEVOLUCIONES
-            // Lógica FedEx: Estatus = returned Y Sub-estatus diferente a "Returning package to shipper"
             if (paq === 'FedEx' && estatus === 'returned' && subEstatus !== 'Returning package to shipper') {
                 listaFedexDev.push({ guia: p.tracking_number, estatus: p.estatus_entrega, dias: diasTransito });
             }
             
-            // Lógica Afimex corregida: Buscamos SARTEN FLAVOR en el producto (o verificamos si el destinatario es DEVOLUCIÓN)
             const esEntregadoAfimex = estatus.includes('delivered') || estatus.includes('entregado') || estatus.includes('entregada') || estatus.includes('success');
+            const esDevolucionAfimex = (producto.includes('SARTEN FLAVOR') || destinatario === 'DEVOLUCIÓN');
             
-            // 2. Cambiamos destinatario por producto.includes('SARTEN FLAVOR')
-            if (paq === 'Afimex' && producto.includes('SARTEN FLAVOR') && !esEntregadoAfimex) {
+            if (paq === 'Afimex' && esDevolucionAfimex && !esEntregadoAfimex) {
                 listaAfimexDev.push({ guia: p.tracking_number, estatus: p.estatus_entrega, dias: diasTransito });
+            }
+
+            // 4. SECCIÓN 4: PAQUETES DE HOY
+            // Filtramos las devoluciones para que no sumen como "ventas/envíos de hoy"
+            if (fechaEnvioCortada === hoyStr) {
+                let nombreProd = p.producto ? p.producto.trim() : 'Sin Nombre';
+                
+                // Si es una devolución de Afimex, la ignoramos para este conteo
+                if (!(paq === 'Afimex' && esDevolucionAfimex)) {
+                    if (paq === 'FedEx') {
+                        conteoFedexHoy[nombreProd] = (conteoFedexHoy[nombreProd] || 0) + 1;
+                    } else if (paq === 'Afimex') {
+                        conteoAfimexHoy[nombreProd] = (conteoAfimexHoy[nombreProd] || 0) + 1;
+                    }
+                }
             }
         });
 
@@ -292,7 +349,6 @@
         // Actualizar Títulos Dinámicos Sección 2 y 3
         document.getElementById('tituloFedexPendientes').innerText = `Pendientes de Entrega FedEx (${listaFedex.length})`;
         document.getElementById('tituloAfimexPendientes').innerText = `Pendientes de Entrega Afimex (${listaAfimex.length})`;
-        
         document.getElementById('tituloFedexDevoluciones').innerText = `Pedidos en Proceso de Devolución FedEx (${listaFedexDev.length})`;
         document.getElementById('tituloAfimexDevoluciones').innerText = `Pedidos en Proceso de Devolución Afimex (${listaAfimexDev.length})`;
 
@@ -302,13 +358,27 @@
         listaFedexDev.sort((a, b) => (b.dias === 'N/A' ? 0 : b.dias) - (a.dias === 'N/A' ? 0 : a.dias));
         listaAfimexDev.sort((a, b) => (b.dias === 'N/A' ? 0 : b.dias) - (a.dias === 'N/A' ? 0 : a.dias));
 
-        // Dibujar Tablas
+        // Dibujar Tablas 2 y 3
         dibujarTabla('bodyFedex', listaFedex);
         dibujarTabla('bodyAfimex', listaAfimex);
         dibujarTabla('bodyFedexDev', listaFedexDev);
         dibujarTabla('bodyAfimexDev', listaAfimexDev);
+
+        // Procesar y dibujar Tablas Sección 4
+        const arrayFedexHoy = Object.keys(conteoFedexHoy).map(k => ({ prod: k, cant: conteoFedexHoy[k] })).sort((a,b) => b.cant - a.cant);
+        const arrayAfimexHoy = Object.keys(conteoAfimexHoy).map(k => ({ prod: k, cant: conteoAfimexHoy[k] })).sort((a,b) => b.cant - a.cant);
+        
+        const totalFedexHoy = arrayFedexHoy.reduce((acc, curr) => acc + curr.cant, 0);
+        const totalAfimexHoy = arrayAfimexHoy.reduce((acc, curr) => acc + curr.cant, 0);
+
+        document.getElementById('tituloFedexHoy').innerText = `FedEx Hoy (${totalFedexHoy})`;
+        document.getElementById('tituloAfimexHoy').innerText = `Afimex Hoy (${totalAfimexHoy})`;
+
+        dibujarTablaHoy('bodyFedexHoy', 'footFedexHoy', arrayFedexHoy, totalFedexHoy);
+        dibujarTablaHoy('bodyAfimexHoy', 'footAfimexHoy', arrayAfimexHoy, totalAfimexHoy);
     }
 
+    // Dibujador Tablas S2 y S3
     function dibujarTabla(idBody, lista) {
         const tbody = document.getElementById(idBody);
         if (lista.length === 0) {
@@ -332,6 +402,91 @@
             `;
         });
         tbody.innerHTML = htmlContent;
+    }
+
+    // Dibujador Tablas S4 (Hoy)
+    function dibujarTablaHoy(idBody, idFoot, lista, total) {
+        const tbody = document.getElementById(idBody);
+        const tfoot = document.getElementById(idFoot);
+        
+        if (lista.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2">No hay envíos registrados hoy.</td></tr>';
+            tfoot.innerHTML = '';
+            return;
+        }
+
+        let htmlContent = '';
+        lista.forEach(r => {
+            htmlContent += `
+                <tr>
+                    <td><strong>${r.cant}</strong></td>
+                    <td style="text-align: left;">${r.prod}</td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = htmlContent;
+
+        // Fila de Total Final
+        tfoot.innerHTML = `
+            <tr>
+                <td><strong>${total}</strong></td>
+                <td style="text-align: left;"><strong>TOTAL GENERAL</strong></td>
+            </tr>
+        `;
+    }
+
+    // ==========================================
+    // COPIAR AL PORTAPAPELES (NUEVA FUNCIÓN)
+    // ==========================================
+    function copiarPaquetesHoy() {
+        const btn = document.getElementById('btnCopiarHoy');
+        let texto = "📦 *RESUMEN DE PAQUETES DE HOY* 📦\n\n";
+        
+        // Extraer texto de FedEx
+        texto += "🟣 *FEDEX*\n";
+        const filasFedex = document.querySelectorAll('#bodyFedexHoy tr');
+        if(filasFedex.length === 1 && filasFedex[0].innerText.includes("No hay")) {
+            texto += "_Sin paquetes hoy._\n";
+        } else {
+            filasFedex.forEach(tr => {
+                const cant = tr.cells[0].innerText;
+                const prod = tr.cells[1].innerText;
+                texto += `▪️ ${cant}x ${prod}\n`;
+            });
+            const totalFedex = document.querySelector('#footFedexHoy tr')?.cells[0].innerText || 0;
+            texto += `*Total FedEx: ${totalFedex}*\n`;
+        }
+
+        // Extraer texto de Afimex
+        texto += "\n🔴 *AFIMEX*\n";
+        const filasAfimex = document.querySelectorAll('#bodyAfimexHoy tr');
+        if(filasAfimex.length === 1 && filasAfimex[0].innerText.includes("No hay")) {
+            texto += "_Sin paquetes hoy._\n";
+        } else {
+            filasAfimex.forEach(tr => {
+                const cant = tr.cells[0].innerText;
+                const prod = tr.cells[1].innerText;
+                texto += `▪️ ${cant}x ${prod}\n`;
+            });
+            const totalAfimex = document.querySelector('#footAfimexHoy tr')?.cells[0].innerText || 0;
+            texto += `*Total Afimex: ${totalAfimex}*\n`;
+        }
+
+        // Ejecutar copiado al portapapeles
+        navigator.clipboard.writeText(texto).then(() => {
+            // Efecto visual en el botón
+            const textoOriginal = btn.innerHTML;
+            btn.innerHTML = "✅ ¡Copiado con éxito!";
+            btn.style.backgroundColor = "#27ae60";
+            
+            setTimeout(() => {
+                btn.innerHTML = textoOriginal;
+                btn.style.backgroundColor = ""; // Regresa al CSS original
+            }, 2500);
+        }).catch(err => {
+            console.error("Error al copiar: ", err);
+            alert("Hubo un error al intentar copiar. Es posible que tu navegador no lo permita.");
+        });
     }
 
     // ==========================================
