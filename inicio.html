@@ -331,7 +331,7 @@
                 let nombreProd = p.producto ? p.producto.trim() : 'Sin Nombre';
                 
                 // Excluimos explícitamente los estatus de cancelación
-                const estaCancelada = estatus.includes('cancel') || estatus.includes('void');
+                const estaCancelada = estatus.includes('Canceled') || estatus.includes('void');
                 
                 if (!estaCancelada && !(paq === 'Afimex' && esDevolucionAfimex)) {
                     if (paq === 'FedEx') {
