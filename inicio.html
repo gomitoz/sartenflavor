@@ -326,12 +326,14 @@
             }
 
             // 4. SECCIÓN 4: PAQUETES DE HOY
-            // Filtramos las devoluciones para que no sumen como "ventas/envíos de hoy"
+            // Filtramos devoluciones y guías CANCELADAS
             if (fechaEnvioCortada === hoyStr) {
                 let nombreProd = p.producto ? p.producto.trim() : 'Sin Nombre';
                 
-                // Si es una devolución de Afimex, la ignoramos para este conteo
-                if (!(paq === 'Afimex' && esDevolucionAfimex)) {
+                // Excluimos explícitamente los estatus de cancelación
+                const estaCancelada = estatus.includes('cancel') || estatus.includes('void');
+                
+                if (!estaCancelada && !(paq === 'Afimex' && esDevolucionAfimex)) {
                     if (paq === 'FedEx') {
                         conteoFedexHoy[nombreProd] = (conteoFedexHoy[nombreProd] || 0) + 1;
                     } else if (paq === 'Afimex') {
