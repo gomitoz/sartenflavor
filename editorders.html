@@ -47,7 +47,12 @@
     .tbl-wrap{overflow-x:auto}
     table{width:100%;border-collapse:collapse;font-size:13px}
     thead tr{background:#f6f9fd;border-bottom:1px solid var(--border)}
-    th{padding:10px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
+    th{padding:10px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;user-select:none}
+    th.sortable{cursor:pointer}
+    th.sortable:hover{color:var(--teal2);background:#eef6f5}
+    th.sort-on{color:var(--teal2)}
+    th .arrow{margin-left:4px;font-size:9px;opacity:.5}
+    th.sort-on .arrow{opacity:1}
     tbody tr{border-bottom:1px solid #f0f3f8;cursor:pointer}
     tbody tr:hover{background:#f0f9f7}
     tbody tr.sel{background:#dff5f0}
@@ -179,6 +184,8 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const db = supabase.createClient(SUPA_URL, SUPA_KEY);
 let rows = [];
 let selId = null;
+let sortCol = 'fecha_captura';
+let sortDir = 'desc';
 
 /* ── utils ── */
 function pad(n){ return String(n).padStart(2,'0'); }
@@ -187,15 +194,21 @@ function toISO(local){
   if(!local) return null;
   return new Date(local).toISOString();
 }
+
+// Extrae dígitos directo del string para evitar conversión UTC→local
+function parseParts(iso){
+  const m = iso.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2})/);
+  return m ? {y:m[1],mo:m[2],d:m[3],h:m[4],mi:m[5]} : null;
+}
 function toLocal(iso){
   if(!iso) return '';
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const p = parseParts(iso);
+  return p ? `${p.y}-${p.mo}-${p.d}T${p.h}:${p.mi}` : '';
 }
 function fmt(iso){
   if(!iso) return '—';
-  const d = new Date(iso);
-  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const p = parseParts(iso);
+  return p ? `${p.d}/${p.mo}/${p.y} ${p.h}:${p.mi}` : iso;
 }
 function esc(v){
   return String(v||'—').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -279,6 +292,34 @@ async function buscarUUID(){
   }
 }
 
+/* ── sort ── */
+function sortBy(col){
+  if(sortCol === col){
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortCol = col;
+    sortDir = 'asc';
+  }
+  renderGrid(rows);
+}
+
+function getSortedRows(data){
+  return [...data].sort((a,b)=>{
+    let va = a[sortCol] ?? '';
+    let vb = b[sortCol] ?? '';
+    // numeric fields
+    if(sortCol === 'bajalogica' || sortCol === 'costo_producto' || sortCol === 'costo_envio'){
+      va = Number(va); vb = Number(vb);
+    } else {
+      va = String(va).toLowerCase();
+      vb = String(vb).toLowerCase();
+    }
+    if(va < vb) return sortDir === 'asc' ? -1 : 1;
+    if(va > vb) return sortDir === 'asc' ?  1 : -1;
+    return 0;
+  });
+}
+
 /* ── render tabla ── */
 function renderGrid(data){
   rows  = data;
@@ -300,12 +341,29 @@ function renderGrid(data){
     'CORREGIDO':'c-corr','CANCELADO':'c-err'
   };
 
-  const trHtml = data.map(r => {
-    const st  = r.estatus_proceso || '';
-    const cls = chipMap[st.toUpperCase()] || 'c-def';
+  const cols = [
+    {key:'fecha_captura', label:'Fecha captura'},
+    {key:'destinatario',  label:'Destinatario'},
+    {key:'producto',      label:'Producto'},
+    {key:'estatus_proceso',label:'Estatus'},
+    {key:'bajalogica',    label:'Registro'},
+  ];
+
+  const thHtml = cols.map(c => {
+    const on  = sortCol === c.key ? ' sort-on' : '';
+    const arr = sortCol === c.key ? (sortDir === 'asc' ? '▲' : '▼') : '⇅';
+    return `<th class="sortable${on}" onclick="sortBy('${c.key}')">${c.label}<span class="arrow">${arr}</span></th>`;
+  }).join('') + '<th></th>';
+
+  const sorted = getSortedRows(data);
+
+  const trHtml = sorted.map(r => {
+    const st    = r.estatus_proceso || '';
+    const cls   = chipMap[st.toUpperCase()] || 'c-def';
     const bjCls = r.bajalogica==1 ? 'c-baja' : 'c-act';
     const bjTxt = r.bajalogica==1 ? 'Baja' : 'Activa';
-    return `<tr onclick="selRow('${r.id}')">
+    const selCls = selId === r.id ? ' class="sel"' : '';
+    return `<tr${selCls} onclick="selRow('${r.id}')">
       <td class="mono">${fmt(r.fecha_captura)}</td>
       <td>${esc(r.destinatario)}</td>
       <td>${esc(r.producto)}</td>
@@ -316,10 +374,7 @@ function renderGrid(data){
   }).join('');
 
   container.innerHTML = `<table>
-    <thead><tr>
-      <th>Fecha captura</th><th>Destinatario</th><th>Producto</th>
-      <th>Estatus</th><th>Registro</th><th></th>
-    </tr></thead>
+    <thead><tr>${thHtml}</tr></thead>
     <tbody>${trHtml}</tbody>
   </table>`;
 }
