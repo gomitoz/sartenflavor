@@ -192,7 +192,9 @@ function pad(n){ return String(n).padStart(2,'0'); }
 
 function toISO(local){
   if(!local) return null;
-  return new Date(local).toISOString();
+  // Los datos están guardados con hora local marcada como +00,
+  // así que el filtro debe enviarse igual, sin conversión de zona horaria.
+  return local + ':00+00';
 }
 
 // Extrae dígitos directo del string para evitar conversión UTC→local
@@ -356,6 +358,8 @@ function renderGrid(data){
   }).join('') + '<th></th>';
 
   const sorted = getSortedRows(data);
+
+  if(sorted.length) console.log('[DEBUG] fecha_captura raw:', sorted[0].fecha_captura, '→ fmt:', fmt(sorted[0].fecha_captura));
 
   const trHtml = sorted.map(r => {
     const st    = r.estatus_proceso || '';
