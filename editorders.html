@@ -624,7 +624,7 @@
     pedidosData = rows;
     selectedId  = null;
     document.getElementById('edit-section').style.display = 'none';
-    document.getElementById('results-section').style.display = '';
+    document.getElementById('results-section').style.display = 'block';
     document.getElementById('badge-count').textContent = rows.length;
 
     const container = document.getElementById('grid-container');
@@ -706,7 +706,7 @@
     const p = pedidosData.find(x => x.id === id);
     if (!p) return;
 
-    document.getElementById('edit-section').style.display = '';
+    document.getElementById('edit-section').style.display = 'block';
     document.getElementById('selected-hint').textContent =
       `Editando: ${p.id}  ·  ${fmtDisplay(p.fecha_captura)}`;
 
