@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mesa de Control | Pedidos</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #0f1e2e;
+      --navy2:  #182d42;
+      --teal:   #0e9f8a;
+      --teal2:  #0b7a6a;
+      --slate:  #334155;
+      --muted:  #64748b;
+      --border: #dde3ec;
+      --bg:     #f3f6fb;
+      --white:  #ffffff;
+      --text:   #1a2332;
+      --green:  #14a84b;
+      --amber:  #e07b10;
+      --red:    #d93636;
+      --radius: 8px;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--navy);
+      padding: 0 28px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 3px solid var(--teal);
+    }
+    header .logo {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      color: var(--teal);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      border: 1px solid var(--teal2);
+      padding: 3px 10px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    header h1 {
+      font-size: 15px;
+      font-weight: 500;
+      color: #e2eaf4;
+      letter-spacing: .02em;
+    }
+    header .spacer { flex: 1; }
+    header .build {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      color: #3d5a74;
+    }
+
+    /* ── Main layout ── */
+    main { max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; }
+
+    /* ── Panel ── */
+    .panel {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 18px;
+    }
+    .panel-head {
+      background: var(--navy2);
+      color: #c8d8e8;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 9px 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-head svg { opacity: .7; }
+    .panel-body { padding: 18px; }
+
+    /* ── Search tabs ── */
+    .search-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      width: fit-content;
+    }
+    .tab-btn {
+      padding: 7px 18px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      letter-spacing: .03em;
+      transition: background .15s, color .15s;
+    }
+    .tab-btn.active {
+      background: var(--navy);
+      color: #e2eaf4;
+    }
+    .tab-btn:not(:last-child) { border-right: 1px solid var(--border); }
+
+    /* ── Search row ── */
+    .search-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .field-group { display: flex; flex-direction: column; gap: 4px; }
+    .field-group label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    input[type="datetime-local"],
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 7px 10px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--white);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    input[type="datetime-local"] { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(14,159,138,.12);
+    }
+    input[readonly] { background: #f0f4f9; color: var(--muted); cursor: default; }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 5px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity .15s, transform .1s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn-primary { background: var(--teal); color: #fff; }
+    .btn-primary:hover { background: var(--teal2); }
+    .btn-navy { background: var(--navy); color: #e2eaf4; }
+    .btn-navy:hover { background: var(--navy2); }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--slate);
+    }
+    .btn-ghost:hover { background: var(--bg); }
+    .btn-success { background: var(--green); color: #fff; }
+    .btn-success:hover { opacity: .9; }
+    .btn-sm { padding: 5px 11px; font-size: 12px; }
+    .btn-hoy {
+      background: #e8f8f5;
+      color: var(--teal2);
+      border: 1px solid #a8e6dc;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .05em;
+    }
+
+    /* ── Status msg ── */
+    .status-msg {
+      font-size: 12px;
+      font-weight: 500;
+      margin-top: 4px;
+      min-height: 18px;
+    }
+    .status-msg.ok  { color: var(--green); }
+    .status-msg.err { color: var(--red); }
+    .status-msg.inf { color: var(--teal2); }
+
+    /* ── Results grid ── */
+    #results-section { display: none; }
+    .results-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .03em;
+    }
+    .badge-count { background: #e8f8f5; color: var(--teal2); }
+
+    .grid-wrap { overflow-x: auto; border-radius: 6px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead tr { background: #f6f9fd; border-bottom: 1px solid var(--border); }
+    th {
+      padding: 9px 12px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-bottom: 1px solid #f0f3f8;
+      cursor: pointer;
+      transition: background .1s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f0f9f7; }
+    tbody tr.selected { background: #e4f6f2 !important; }
+    tbody tr.selected td { color: var(--teal2); }
+    td { padding: 9px 12px; color: var(--slate); vertical-align: middle; }
+    td.mono { font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+
+    /* status chips */
+    .chip {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .chip-pending  { background: #fff3e0; color: #b35c00; }
+    .chip-error    { background: #fde8e8; color: #a82020; }
+    .chip-ok       { background: #e2f5ea; color: #116b2e; }
+    .chip-corr     { background: #e4f0ff; color: #1752a8; }
+    .chip-default  { background: #f0f4f9; color: var(--muted); }
+    .chip-baja     { background: #fde8e8; color: #a82020; }
+    .chip-activa   { background: #e2f5ea; color: #116b2e; }
+
+    /* ── Edit form ── */
+    #edit-section { display: none; }
+    .selected-hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      padding: 8px 12px;
+      background: #f6f9fd;
+      border-left: 3px solid var(--teal);
+      border-radius: 0 5px 5px 0;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .form-grid .span2 { grid-column: span 2; }
+    .form-grid .span3 { grid-column: span 3; }
+    .form-field { display: flex; flex-direction: column; gap: 4px; }
+    .form-field label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .form-field input,
+    .form-field textarea { width: 100%; }
+    .form-field textarea { resize: vertical; min-height: 60px; }
+    .form-actions {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* no results */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
+    }
+    .empty-state svg { opacity: .25; margin-bottom: 10px; }
+    .empty-state p { font-size: 13px; }
+
+    /* uuid search */
+    #panel-uuid { display: none; }
+    #panel-uuid .search-row { gap: 10px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Mesa de Control</div>
+  <h1>Gestión de Pedidos</h1>
+  <div class="spacer"></div>
+  <div class="build">v2.0</div>
+</header>
+
+<main>
+
+  <!-- ── Filtros ── -->
+  <div class="panel">
+    <div class="panel-head">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 4h18M7 12h10M11 20h2"/></svg>
+      Filtros de búsqueda
+    </div>
+    <div class="panel-body">
+
+      <div class="search-tabs">
+        <button class="tab-btn active" id="tab-fecha" onclick="switchTab('fecha')">Por fecha</button>
+        <button class="tab-btn" id="tab-uuid"  onclick="switchTab('uuid')">Por ID / UUID</button>
+      </div>
+
+      <!-- Panel fecha -->
+      <div id="panel-fecha">
+        <div class="search-row">
+          <div class="field-group">
+            <label>Desde</label>
+            <input type="datetime-local" id="fecha-desde" style="width:210px">
+          </div>
+          <div class="field-group">
+            <label>Hasta</label>
+            <input type="datetime-local" id="fecha-hasta" style="width:210px">
+          </div>
+          <div class="field-group">
+            <label>&nbsp;</label>
+            <button class="btn btn-hoy" onclick="setHoy()">📅 Hoy</button>
+          </div>
+          <div class="field-group" style="margin-left:auto">
+            <label>&nbsp;</label>
+            <button class="btn btn-primary" onclick="buscarPorFecha()">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              Buscar
+            </button>
+          </div>
+        </div>
+        <div class="status-msg" id="status-fecha"></div>
+      </div>
+
+      <!-- Panel UUID -->
+      <div id="panel-uuid">
+        <div class="search-row">
+          <div class="field-group" style="flex:1">
+            <label>UUID del pedido</label>
+            <input type="text" id="search-uuid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family:'IBM Plex Mono',monospace;font-size:12px;">
+          </div>
+          <div class="field-group">
+            <label>&nbsp;</label>
+            <button class="btn btn-primary" onclick="buscarPorUUID()">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              Buscar
+            </button>
+          </div>
+        </div>
+        <div class="status-msg" id="status-uuid"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Resultados ── -->
+  <div id="results-section">
+    <div class="panel">
+      <div class="panel-head">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        Resultados
+        <span class="badge badge-count" id="badge-count">0</span>
+        <span style="flex:1"></span>
+        <span style="font-size:10px;opacity:.6;">Selecciona una fila para editar</span>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <div id="grid-container"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Edición ── -->
+  <div id="edit-section">
+    <div class="panel">
+      <div class="panel-head">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Editar pedido
+      </div>
+      <div class="panel-body">
+        <div class="selected-hint" id="selected-hint">— ningún pedido seleccionado —</div>
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label>ID (solo lectura)</label>
+            <input type="text" id="f-id" readonly>
+          </div>
+          <div class="form-field">
+            <label>Fecha captura</label>
+            <input type="datetime-local" id="f-fecha_captura" style="font-family:'IBM Plex Mono',monospace;font-size:12px;">
+          </div>
+          <div class="form-field">
+            <label>Estatus proceso</label>
+            <input type="text" id="f-estatus_proceso" readonly title="Se actualiza automáticamente al guardar">
+          </div>
+
+          <div class="form-field">
+            <label>Destinatario</label>
+            <input type="text" id="f-destinatario">
+          </div>
+          <div class="form-field">
+            <label>Teléfono</label>
+            <input type="text" id="f-telefono">
+          </div>
+          <div class="form-field">
+            <label>Producto</label>
+            <input type="text" id="f-producto">
+          </div>
+
+          <div class="form-field span2">
+            <label>Calle y número</label>
+            <input type="text" id="f-calle_y_numero">
+          </div>
+          <div class="form-field">
+            <label>Colonia</label>
+            <input type="text" id="f-colonia">
+          </div>
+
+          <div class="form-field">
+            <label>Municipio</label>
+            <input type="text" id="f-municipio">
+          </div>
+          <div class="form-field">
+            <label>Estado</label>
+            <input type="text" id="f-estado">
+          </div>
+          <div class="form-field">
+            <label>Código postal</label>
+            <input type="text" id="f-cp">
+          </div>
+
+          <div class="form-field">
+            <label>Costo producto</label>
+            <input type="number" step="0.01" id="f-costo_producto">
+          </div>
+          <div class="form-field">
+            <label>Costo envío</label>
+            <input type="number" step="0.01" id="f-costo_envio">
+          </div>
+          <div class="form-field">
+            <label>Baja lógica (0 = activo · 1 = baja)</label>
+            <input type="number" min="0" max="1" id="f-bajalogica">
+          </div>
+
+          <div class="form-field span3">
+            <label>Referencias</label>
+            <textarea id="f-referencias" rows="2"></textarea>
+          </div>
+          <div class="form-field span3">
+            <label>Mensaje original</label>
+            <textarea id="f-mensaje_original" rows="3"></textarea>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn-success" onclick="guardarPedido()">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+            Guardar cambios
+          </button>
+          <button class="btn btn-ghost" onclick="limpiarForm()">Cancelar</button>
+          <div class="status-msg" id="status-save"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  /* ── Supabase ── */
+  const SUPABASE_URL  = 'https://vtjosswxbkuklwfygvcn.supabase.co';
+  const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0am9zc3d4Ymt1a2x3ZnlndmNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODI4MTgsImV4cCI6MjA4OTg1ODgxOH0.K0gzcDf7figLjgQ3bWO2hgGS9K8yrb1_qxquGypUzOU'; // ← reemplaza con tu Anon key
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let pedidosData = [];
+  let selectedId  = null;
+
+  /* ── Helpers de fecha ── */
+  function toISO(dtLocalStr) {
+    if (!dtLocalStr) return null;
+    return new Date(dtLocalStr).toISOString();
+  }
+  function toLocal(isoStr) {
+    if (!isoStr) return '';
+    const d = new Date(isoStr);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function fmtDisplay(isoStr) {
+    if (!isoStr) return '—';
+    const d = new Date(isoStr);
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function setHoy() {
+    const now   = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    document.getElementById('fecha-desde').value = toLocal(start.toISOString());
+    document.getElementById('fecha-hasta').value = toLocal(end.toISOString());
+  }
+
+  /* ── Tabs ── */
+  function switchTab(tab) {
+    document.getElementById('panel-fecha').style.display = tab === 'fecha' ? '' : 'none';
+    document.getElementById('panel-uuid').style.display  = tab === 'uuid'  ? '' : 'none';
+    document.getElementById('tab-fecha').classList.toggle('active', tab === 'fecha');
+    document.getElementById('tab-uuid').classList.toggle('active',  tab === 'uuid');
+  }
+
+  /* ── Buscar por fecha ── */
+  async function buscarPorFecha() {
+    const desde  = document.getElementById('fecha-desde').value;
+    const hasta  = document.getElementById('fecha-hasta').value;
+    const msgEl  = document.getElementById('status-fecha');
+
+    if (!desde || !hasta) {
+      msgEl.className = 'status-msg err';
+      msgEl.textContent = 'Selecciona ambas fechas.';
+      return;
+    }
+
+    msgEl.className = 'status-msg inf';
+    msgEl.textContent = 'Buscando…';
+
+    const { data, error } = await db
+      .from('pedidos_whatsapp')
+      .select('*')
+      .gte('fecha_captura', toISO(desde))
+      .lte('fecha_captura', toISO(hasta))
+      .order('fecha_captura', { ascending: false });
+
+    if (error) {
+      msgEl.className = 'status-msg err';
+      msgEl.textContent = 'Error: ' + error.message;
+      return;
+    }
+
+    msgEl.className = 'status-msg ok';
+    msgEl.textContent = data.length
+      ? `${data.length} pedido(s) encontrado(s).`
+      : 'Sin resultados en ese rango.';
+
+    renderGrid(data);
+  }
+
+  /* ── Buscar por UUID ── */
+  async function buscarPorUUID() {
+    const id    = document.getElementById('search-uuid').value.trim();
+    const msgEl = document.getElementById('status-uuid');
+
+    if (!id) {
+      msgEl.className = 'status-msg err';
+      msgEl.textContent = 'Ingresa un ID válido.';
+      return;
+    }
+
+    msgEl.className = 'status-msg inf';
+    msgEl.textContent = 'Buscando…';
+
+    const { data, error } = await db
+      .from('pedidos_whatsapp')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
+      msgEl.className = 'status-msg err';
+      msgEl.textContent = 'No se encontró ningún pedido con ese ID.';
+      renderGrid([]);
+      return;
+    }
+
+    msgEl.className = 'status-msg ok';
+    msgEl.textContent = 'Pedido encontrado.';
+    renderGrid([data]);
+  }
+
+  /* ── Renderizar tabla ── */
+  function renderGrid(rows) {
+    pedidosData = rows;
+    selectedId  = null;
+    document.getElementById('edit-section').style.display = 'none';
+    document.getElementById('results-section').style.display = '';
+    document.getElementById('badge-count').textContent = rows.length;
+
+    const container = document.getElementById('grid-container');
+
+    if (!rows.length) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M11 8v3M11 14h.01"/>
+          </svg>
+          <p>Sin resultados para los filtros seleccionados.</p>
+        </div>`;
+      return;
+    }
+
+    const rows_html = rows.map(r => {
+      const chip = statusChip(r.estatus_proceso);
+      const baja = r.bajalogica == 1
+        ? `<span class="chip chip-baja">Baja</span>`
+        : `<span class="chip chip-activa">Activa</span>`;
+      const cls  = selectedId === r.id ? 'selected' : '';
+      return `<tr class="${cls}" onclick="seleccionarFila('${r.id}')">
+        <td class="mono">${fmtDisplay(r.fecha_captura)}</td>
+        <td>${esc(r.destinatario || '—')}</td>
+        <td>${esc(r.producto || '—')}</td>
+        <td>${chip}</td>
+        <td>${baja}</td>
+        <td style="text-align:right">
+          <span style="font-size:11px;color:var(--teal2);font-weight:600;">Editar →</span>
+        </td>
+      </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="grid-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha captura</th>
+              <th>Destinatario</th>
+              <th>Producto</th>
+              <th>Estatus proceso</th>
+              <th>Registro</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows_html}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function statusChip(s) {
+    if (!s) return `<span class="chip chip-default">—</span>`;
+    const map = {
+      'PENDIENTE':  'chip-pending',
+      'ERROR':      'chip-error',
+      'PROCESADO':  'chip-ok',
+      'CORREGIDO':  'chip-corr',
+      'CANCELADO':  'chip-error',
+    };
+    const cls = map[s.toUpperCase()] || 'chip-default';
+    return `<span class="chip ${cls}">${esc(s)}</span>`;
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ── Seleccionar fila ── */
+  function seleccionarFila(id) {
+    selectedId = id;
+
+    document.querySelectorAll('tbody tr').forEach(tr => {
+      tr.classList.toggle('selected', tr.onclick.toString().includes(`'${id}'`));
+    });
+
+    const p = pedidosData.find(x => x.id === id);
+    if (!p) return;
+
+    document.getElementById('edit-section').style.display = '';
+    document.getElementById('selected-hint').textContent =
+      `Editando: ${p.id}  ·  ${fmtDisplay(p.fecha_captura)}`;
+
+    const set = (fid, val) => {
+      const el = document.getElementById('f-' + fid);
+      if (el) el.value = val ?? '';
+    };
+
+    set('id',               p.id);
+    set('fecha_captura',    toLocal(p.fecha_captura));
+    set('estatus_proceso',  p.estatus_proceso);
+    set('destinatario',     p.destinatario);
+    set('telefono',         p.telefono);
+    set('producto',         p.producto);
+    set('calle_y_numero',   p.calle_y_numero);
+    set('colonia',          p.colonia);
+    set('municipio',        p.municipio);
+    set('estado',           p.estado);
+    set('cp',               p.cp);
+    set('costo_producto',   p.costo_producto ?? 0);
+    set('costo_envio',      p.costo_envio    ?? 0);
+    set('bajalogica',       p.bajalogica     ?? 0);
+    set('referencias',      p.referencias);
+    set('mensaje_original', p.mensaje_original);
+
+    document.getElementById('status-save').textContent = '';
+    document.getElementById('edit-section')
+      .scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /* ── Guardar ── */
+  async function guardarPedido() {
+    const id    = document.getElementById('f-id').value;
+    const msgEl = document.getElementById('status-save');
+
+    if (!id) {
+      msgEl.className = 'status-msg err';
+      msgEl.textContent = 'Sin pedido seleccionado.';
+      return;
+    }
+
+    msgEl.className = 'status-msg inf';
+    msgEl.textContent = 'Guardando…';
+
+    const fechaLocal = document.getElementById('f-fecha_captura').value;
+    const updates = {
+      fecha_captura:   fechaLocal ? toISO(fechaLocal) : undefined,
+      destinatario:    document.getElementById('f-destinatario').value,
+      telefono:        document.getElementById('f-telefono').value,
+      producto:        document.getElementById('f-producto').value,
+      calle_y_numero:  document.getElementById('f-calle_y_numero').value,
+      colonia:         document.getElementById('f-colonia').value,
+      municipio:       document.getElementById('f-municipio').value,
+      estado:          document.getElementById('f-estado').value,
+      cp:              document.getElementById('f-cp').value,
+      costo_producto:  parseFloat(document.getElementById('f-costo_producto').value) || 0,
+      costo_envio:     parseFloat(document.getElementById('f-costo_envio').value)    || 0,
+      bajalogica:      parseInt(document.getElementById('f-bajalogica').value)        || 0,
+      referencias:     document.getElementById('f-referencias').value,
+      mensaje_original:document.getElementById('f-mensaje_original').value,
+      estatus_proceso: 'CORREGIDO',
+    };
+    if (updates.fecha_captura === undefined) delete updates.fecha_captura;
+
+    const { error } = await db
+      .from('pedidos_whatsapp')
+      .update(updates)
+      .eq('id', id);
+
+    if (error) {
+      msgEl.className = 'status-msg err';
+      msgEl.textContent = 'Error: ' + error.message;
+      return;
+    }
+
+    msgEl.className = 'status-msg ok';
+    msgEl.textContent = '✓ Pedido actualizado a CORREGIDO.';
+    document.getElementById('f-estatus_proceso').value = 'CORREGIDO';
+
+    const idx = pedidosData.findIndex(x => x.id === id);
+    if (idx > -1) {
+      pedidosData[idx] = { ...pedidosData[idx], ...updates, estatus_proceso: 'CORREGIDO' };
+      renderGrid(pedidosData);
+      seleccionarFila(id);
+    }
+  }
+
+  /* ── Cancelar ── */
+  function limpiarForm() {
+    selectedId = null;
+    document.getElementById('edit-section').style.display = 'none';
+    document.querySelectorAll('tbody tr').forEach(tr => tr.classList.remove('selected'));
+  }
+
+  /* ── Init ── */
+  setHoy();
+</script>
+</body>
+</html>
